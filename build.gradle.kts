@@ -1,92 +1,76 @@
-plugins {
-    kotlin("jvm")
-    id("com.github.johnrengelman.shadow")
-}
+allprojects {
+    group = property("group").toString()
+    version = property("version").toString()
 
-buildscript {
     repositories {
         mavenCentral()
-    }
-    dependencies {
-        classpath("com.guardsquare:proguard-gradle:7.3.2")
-    }
-}
-subprojects {
-    group = rootProject.group
-    version = rootProject.version
-    apply {
-        plugin<com.github.jengelman.gradle.plugins.shadow.ShadowPlugin>()
-        plugin<JavaPlugin>()
-        plugin<JavaLibraryPlugin>()
-    }
-    repositories {
-//    阿里的服务器速度快一点
-        maven {
-            name = "aliyun"
-            url = uri("https://maven.aliyun.com/repository/public")
-        }
-        maven {
-            name = "aliyun-google"
-            url = uri("https://maven.aliyun.com/repository/google")
-        }
-//        google()
-        mavenCentral()
-        maven {
-            name = "spigot"
-            url = uri("https://hub.spigotmc.org/nexus/content/repositories/public/")
-        }
-        maven {
-            name = "jitpack"
-            url = uri("https://jitpack.io")
-        }
-        maven {
-            name = "CodeMC"
-            url = uri("https://repo.codemc.org/repository/maven-public")
-        }
-        maven {
-            name = "PlaceholderAPI"
-            url = uri("https://repo.extendedclip.com/content/repositories/placeholderapi/")
-        }
+        maven("papermc") { url = uri("https://repo.papermc.io/repository/maven-public/") }
+        maven("spigot") { url = uri("https://hub.spigotmc.org/nexus/content/repositories/public/") }
+        maven("jitpack") { url = uri("https://jitpack.io") }
+        maven("codemc") { url = uri("https://repo.codemc.org/repository/maven-public") }
+        maven("auxilor") { url = uri("https://repo.auxilor.io/repository/maven-public/") }
+        maven("placeholderapi") { url = uri("https://repo.extendedclip.com/content/repositories/placeholderapi/") }
+        maven("helpch") { url = uri("https://repo.helpch.at/releases/") }
         mavenLocal()
     }
+}
 
-    dependencies {
-        val kotlinVersion: String by rootProject
-        compileOnly(platform("org.jetbrains.kotlin:kotlin-bom:$kotlinVersion"))
-        //基础库
-        compileOnly(kotlin("stdlib"))
-        // 数据库
-        val exposedVersion: String by rootProject
-        val nbtEditorVersion: String by rootProject
-        compileOnly("io.github.bananapuncher714:nbteditor:$nbtEditorVersion")
-        compileOnly("me.clip:placeholderapi:2.11.2")
-        compileOnly("org.jetbrains.exposed:exposed-core:$exposedVersion")
-        compileOnly("org.jetbrains.exposed:exposed-dao:$exposedVersion")
-        compileOnly("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
-        compileOnly("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
-        compileOnly("com.zaxxer:HikariCP:4.0.3")
+plugins {
+    `java-library`
+    id("com.gradleup.shadow")
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    withSourcesJar()
+}
+
+sourceSets {
+    val main by getting {
+        java.setSrcDirs(listOf(projectDir.toPath().resolve("../src/main/java").toFile()))
+        resources.setSrcDirs(listOf(projectDir.toPath().resolve("../src/main/resources").toFile()))
     }
+}
 
-    tasks {
-        compileJava {
-            options.encoding = "UTF-8"
-            sourceCompatibility = "1.8"
-            targetCompatibility = "1.8"
+val pluginName: String by rootProject
+val author: String by rootProject
+
+dependencies {
+    compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
+    compileOnly("me.clip:placeholderapi:2.11.7")
+    compileOnly("com.willfp:libreforge:4.79.0")
+    compileOnly("com.willfp:eco:6.77.2")
+    compileOnly("com.willfp:EcoEnchants:12.26.1")
+    compileOnly("io.github.baked-libs:dough-api:1.2.0")
+    compileOnly("com.github.Slimefun:Slimefun4:RC-35")
+    implementation("org.bstats:bstats-bukkit:3.0.2")
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    implementation("net.kyori:adventure-text-serializer-legacy:4.17.0")
+}
+
+tasks {
+    processResources {
+        filteringCharset = "UTF-8"
+        filesMatching("plugin.yml") {
+            expand(
+                "main" to "icu.nyat.kusunoki.deenchantment.DeEnchantmentPlugin",
+                "name" to pluginName,
+                "version" to project.version,
+                "author" to author
+            )
         }
     }
 
-}
-
-repositories {
-//    阿里的服务器速度快一点
-    maven {
-        name = "aliyun"
-        url = uri("https://maven.aliyun.com/repository/public/")
+    jar {
+        enabled = false
     }
-    google()
-    mavenCentral()
-}
-dependencies {
-    //基础库
-    compileOnly(kotlin("stdlib"))
+
+    shadowJar {
+        archiveClassifier.set("")
+        mergeServiceFiles()
+    }
+
+    build {
+        dependsOn(shadowJar)
+    }
 }

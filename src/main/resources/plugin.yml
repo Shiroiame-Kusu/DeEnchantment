@@ -1,0 +1,44 @@
+name: ${name}
+main: ${main}
+version: ${version}
+authors: [${author}]
+api-version: 1.20
+load: STARTUP
+softdepend:
+  - EcoEnchants
+  - Eco
+  - Libreforge
+  - PlaceholderAPI
+  - Slimefun
+commands:
+  deenchantment:
+    description: Manage DeEnchantment curses and settings
+    usage: /<command> <subcommand>
+    aliases: [de, den]
+    permission: deenchantment.use
+permissions:
+  deenchantment.use:
+    description: Access to /deenchantment base command
+    default: op
+  deenchantment.reload:
+    description: Reload DeEnchantment configuration files
+    default: op
+  deenchantment.give:
+    description: Give players specific curse books
+    default: op
+  deenchantment.random:
+    description: Roll a random curse for a player or book
+    default: op
+  deenchantment.add:
+    description: Apply a curse to the held item
+    default: op
+  deenchantment.update:
+    description: Refresh lore for held items
+    default: op
+  deenchantment.purification:
+    description: Purify curses from held items
+    default: op
+  deenchantment.migrate:
+    description: Migrate legacy DeEnchantment data
+    default: op
+

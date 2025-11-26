@@ -1,0 +1,572 @@
+curses:
+  de_binding_curse:
+    enable: true
+    translate-name: "§a灵魂绑定"
+    description: "§8 - 绑定玩家的灵魂仅允许使用"
+    target: BREAKABLE
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: true
+    cursed: true
+    conflicts:
+      - de_vanishing_curse
+    bind-message: "&a您的装备已绑定您的灵魂"
+    owner-message: "&c你不能使用绑定了别人灵魂的装备!"
+    deny-anvil: true
+    deny-grindstone: true
+    deny-pickup: true
+    keep-inventory: true
+    place-holder: "玩家"
+
+  de_protection:
+    enable: true
+    translate-name: "§7保护不了"
+    description: "§8 - 增加受到的伤害"
+    target: ARMOR
+    chance: 0.2
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_blast_protection
+
+  de_luck_of_the_sea:
+    enable: true
+    translate-name: "§7海之嫌弃"
+    description: "§8 - 钓到的东西有概率脱钩"
+    target: FISHING_ROD
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    chance-rate: 0.1
+    message: "&6你受到了大海的嫌弃并回收了你的东西"
+
+  de_lure:
+    enable: true
+    translate-name: "§7过期钓饵"
+    description: "§8 - 增加鱼上钩的时间"
+    target: FISHING_ROD
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    wait-time-rate: 0.2
+
+  de_loyalty:
+    enable: true
+    translate-name: "§7背叛"
+    description: "§8 - 三叉戟有概率叛逃他人"
+    target: TRIDENT
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_riptide
+    chance-rate: 0.1
+    radius: 10.0
+    highlight: true
+    message: "&c您的武器已背叛！&6现在属于 &a{player} &6位于 &a{location}"
+
+  de_impaling:
+    enable: true
+    translate-name: "§7刺穿"
+    description: "§8 - 增加对非水生生物的伤害"
+    target: TRIDENT
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    melee-damage-rate: 0.5
+    remote-damage-rate: 1.0
+
+  de_riptide:
+    enable: true
+    translate-name: "§7焰流"
+    description: "§8 - 在燃烧时快速移动"
+    target: TRIDENT
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_loyalty
+      - de_channeling
+    speed-rate: 1.0
+
+  de_channeling:
+    enable: true
+    translate-name: "§7引雷针"
+    description: "§8 - 在雷雨天时会遭天谴"
+    target: TRIDENT
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_riptide
+    effect-only: false
+    extra-damage: 0.0
+
+  de_multishot:
+    enable: true
+    translate-name: "§7连珠"
+    description: "§8 - 连续射出多支箭"
+    target: CROSSBOW
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_piercing
+    period: 3
+
+  de_quick_charge:
+    enable: true
+    translate-name: "§7慢速装填"
+    description: "§8 - 装填过程被频繁打断"
+    target: CROSSBOW
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_piercing
+    time-rate: 1
+
+  de_piercing:
+    enable: true
+    translate-name: "§7反弹"
+    description: "§8 - 击中后会反弹回射手"
+    target: CROSSBOW
+    chance: 0.2
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_multishot
+    rebound-rate: 0.25
+    allow-reduce: true
+
+  de_mending:
+    enable: true
+    translate-name: "§7经验反哺"
+    description: "§8 - 以额外耐久消耗换取经验"
+    target: BREAKABLE
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    exp-rate: 1.0
+    damage-rate: 1.0
+
+  de_vanishing_curse:
+    enable: true
+    translate-name: "§a永存祝福"
+    description: "§8 - 不会消失并追随原主人"
+    target: BREAKABLE
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: true
+    cursed: true
+    conflicts:
+      - de_binding_curse
+
+  de_soul_speed:
+    enable: true
+    translate-name: "§7大地疾行"
+    description: "§8 - 在特定方块上极速奔跑"
+    target: ARMOR_FEET
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    speed-rate: 0.15
+    period: 10
+    blocks:
+      - DIRT
+      - GRASS_BLOCK
+
+  de_swift_sneak:
+    enable: true
+    translate-name: "§7沉重步伐"
+    description: "§8 - 行走迟缓但更为坚韧"
+    target: ARMOR_LEGS
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: true
+    cursed: true
+    conflicts: []
+    slow-level-rate: 1
+    max-slow-level: -1
+    resistance-level-rate: 1
+    max-resistance-level: 3
+  de_power:
+    enable: true
+    translate-name: "§7虚弱"
+    description: "§8 - 箭矢伤害和速度减少"
+    target: BOW
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    damage-rate: 0.15
+
+  de_punch:
+    enable: true
+    translate-name: "§7拉扯"
+    description: "§8 - 将目标拉扯过来"
+    target: BOW
+    chance: 0.2
+    max-level: 2
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    velocity-rate: 0.8
+
+  de_infinity:
+    enable: true
+    translate-name: "§7多重"
+    description: "§8 - 消耗一根箭射出多支箭"
+    target: BOW
+    chance: 0.2
+    max-level: 2
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_mending
+    type: 0
+    angle: 0.2
+
+      - de_fire_protection
+    damage-rate: 0.04
+
+  de_fire_protection:
+    enable: true
+    translate-name: "§7易燃"
+    description: "§8 - 受到攻击时有概率着火"
+    target: ARMOR
+    chance: 0.2
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_blast_protection
+      - de_projectile_protection
+      - de_protection
+    chance-rate: 0.05
+    fire-time-rate: 20
+
+  de_blast_protection:
+    enable: true
+    translate-name: "§7瞬间爆炸"
+    description: "§8 - 受到伤害时有概率爆炸"
+    target: ARMOR
+    chance: 0.2
+
+  de_unbreaking:
+    enable: true
+    translate-name: "§7易损"
+    description: "§8 - 增加耐久消耗"
+    target: BREAKABLE
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    damage-rate: 1.0
+
+  de_fortune:
+    enable: true
+    translate-name: "§7霉运"
+    description: "§8 - 挖掘方块掉落物有概率消失"
+    target: TOOL
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_silk_touch
+    chance-rate: 0.05
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_fire_protection
+      - de_projectile_protection
+      - de_protection
+    chance: 0.05
+    explosion-rate: 0.2
+    allow-fire: false
+    allow-destroy: false
+
+  de_projectile_protection:
+    enable: true
+    translate-name: "§7弹射物吸引"
+    description: "§8 - 吸引附近的弹射物"
+    target: ARMOR
+    chance: 0.2
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_fire_protection
+      - de_blast_protection
+      - de_protection
+    player-only: true
+    radius-multiplier: 1.0
+    max-radius: 10.0
+    period: 5
+
+  de_feather_falling:
+    enable: true
+    translate-name: "§7摔落骨折"
+    description: "§8 - 增加受到的摔落伤害"
+    target: ARMOR_FEET
+    chance: 0.2
+    max-level: 4
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    damage-rate: 0.12
+    potion-time-rate: 20
+    potion-level: 1
+
+  de_respiration:
+    enable: true
+    translate-name: "§7水下窒息"
+    description: "§8 - 消耗氧气的速度增加"
+    target: ARMOR_HEAD
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    speed-rate: 1.0
+
+  de_aqua_affinity:
+    enable: true
+    translate-name: "§7水下慢掘"
+    description: "§8 - 水下挖掘有概率失败"
+    target: ARMOR_HEAD
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    failure-rate: 10.0
+
+  de_thorns:
+    enable: true
+    translate-name: "§7负荆请罪"
+    description: "§8 - 疾跑时有概率受伤"
+    target: ARMOR
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    chance-rate: 0.05
+    damage-rate: 0.5
+
+  de_depth_strider:
+    enable: true
+    translate-name: "§7旱鸭子"
+    description: "§8 - 水下视野减少"
+    target: ARMOR_FEET
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_frost_walker
+    slowness-multiplier: 2
+    effect-duration: 120
+
+  de_frost_walker:
+    enable: true
+    translate-name: "§7熔岩行者"
+    description: "§8 - 在岩浆上行走"
+    target: ARMOR_FEET
+    chance: 0.2
+    max-level: 2
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_depth_strider
+    radius-rate: 1
+    exist-time: 160
+
+  de_sharpness:
+    enable: true
+    translate-name: "§7磨钝"
+    description: "§8 - 攻击伤害减少"
+    target: WEAPON
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_smite
+      - de_bane_of_arthropods
+    damage-rate: 0.5
+
+  de_smite:
+    enable: true
+    translate-name: "§7亡灵之友"
+    description: "§8 - 对亡灵生物伤害减少"
+    target: WEAPON
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_sharpness
+      - de_bane_of_arthropods
+    reduce-rate: 2.5
+
+  de_bane_of_arthropods:
+    enable: true
+    translate-name: "§7截肢之友"
+    description: "§8 - 对截肢生物伤害减少"
+    target: WEAPON
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_sharpness
+      - de_smite
+    reduce-rate: 2.5
+
+  de_knockback:
+    enable: true
+    translate-name: "§7退击"
+    description: "§8 - 攻击时后跳一段距离"
+    target: WEAPON
+    chance: 0.2
+    max-level: 2
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    knockback-rate: 0.6
+
+  de_fire_aspect:
+    enable: true
+    translate-name: "§7引火烧身"
+    description: "§8 - 攻击时有概率烧伤自己"
+    target: WEAPON
+    chance: 0.2
+    max-level: 2
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    chance-rate: 0.2
+    fire-tick-rate: 20
+
+  de_flame:
+    enable: true
+    translate-name: "§7神速"
+    description: "§8 - 箭矢速度增加"
+    target: BOW
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    speed-rate: 0.2
+
+  de_looting:
+    enable: true
+    translate-name: "§7知足"
+    description: "§8 - 击杀生物有概率没有掉落物"
+    target: WEAPON
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    chance-rate: 0.05
+
+  de_sweeping:
+    enable: true
+    translate-name: "§7牵引之刃"
+    description: "§8 - 将范围内的敌人吸引过来"
+    target: WEAPON
+    chance: 0.2
+    max-level: 3
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    power-rate: 0.2
+
+  de_efficiency:
+    enable: true
+    translate-name: "§7低效"
+    description: "§8 - 有概率挖掘失败"
+    target: TOOL
+    chance: 0.2
+    max-level: 5
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts: []
+    chance-rate: 0.08
+
+  de_silk_touch:
+    enable: true
+    translate-name: "§7彻底粉碎"
+    description: "§8 - 挖掘方块不会有掉落物"
+    target: TOOL
+    chance: 0.2
+    max-level: 1
+    start-level: 1
+    treasure: false
+    cursed: true
+    conflicts:
+      - de_fortune
+    allow-container: false

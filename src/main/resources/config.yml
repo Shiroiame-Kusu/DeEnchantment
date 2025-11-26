@@ -1,0 +1,22 @@
+# Global feature flags
+anvil: true
+grindstone: true
+enchant: true
+chestLoot: true
+spawn: true
+trade: true
+fishing: true
+reward: true
+
+# Anvil behaviour
+levelUnlimited: false
+tooExpensive: false
+
+# Console and lore appearance
+cleanConsole: false
+allowDescription: true
+lorePosition: 0
+
+# Permissions and diagnostics
+enchantsPermission: false
+debug: false
