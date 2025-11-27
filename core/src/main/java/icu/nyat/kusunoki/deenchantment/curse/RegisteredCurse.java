@@ -1,6 +1,7 @@
 package icu.nyat.kusunoki.deenchantment.curse;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.enchantments.EnchantmentTarget;
 import org.bukkit.entity.EntityCategory;
@@ -17,10 +18,12 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public final class RegisteredCurse extends Enchantment {
 
+    private final NamespacedKey key;
     private volatile CurseDefinition definition;
 
     public RegisteredCurse(final CurseDefinition definition) {
-        super(definition.id().namespacedKey());
+        super();
+        this.key = definition.id().namespacedKey();
         this.definition = definition;
     }
 
@@ -33,6 +36,11 @@ public final class RegisteredCurse extends Enchantment {
             throw new IllegalArgumentException("Curse definition ID mismatch for " + getKey());
         }
         this.definition = updated;
+    }
+
+    @Override
+    public NamespacedKey getKey() {
+        return key;
     }
 
     @Override
@@ -100,20 +108,40 @@ public final class RegisteredCurse extends Enchantment {
         return 0.0F;
     }
 
-        @Override
-        public EnchantmentRarity getRarity() {
-            return definition.treasure() ? EnchantmentRarity.VERY_RARE : EnchantmentRarity.RARE;
-        }
-
-        @Override
-        public Component displayName(final int level) {
-            return LegacyComponentSerializer.legacySection().deserialize(definition.displayName());
+    @Override
+    public EnchantmentRarity getRarity() {
+        return definition.treasure() ? EnchantmentRarity.VERY_RARE : EnchantmentRarity.RARE;
     }
 
-        @Override
-        public String translationKey() {
-            return "enchantment." + definition.id().key();
-        }
+    @Override
+    public int getMinModifiedCost(final int level) {
+        return Math.max(1, level * 5);
+    }
+
+    @Override
+    public int getMaxModifiedCost(final int level) {
+        return getMinModifiedCost(level) + 10;
+    }
+
+    // No @Override here: the method only exists on Paper 1.21+, but defining it keeps runtime compatibility.
+    public int getAnvilCost() {
+        return 0;
+    }
+
+    @Override
+    public Component displayName(final int level) {
+        return LegacyComponentSerializer.legacySection().deserialize(definition.displayName());
+    }
+
+    @Override
+    public String translationKey() {
+        return "enchantment." + definition.id().key();
+    }
+
+    @Override
+    public String getTranslationKey() {
+        return translationKey();
+    }
 
     public Optional<Enchantment> vanillaEnchantment() {
         return definition.id().vanillaEnchantment();

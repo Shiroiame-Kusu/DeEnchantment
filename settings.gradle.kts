@@ -5,8 +5,6 @@ include("core")
 include("nms-api")
 
 val nmsModules = listOf(
-    "nms-v1_20_R1",
-    "nms-v1_20_R2",
     "nms-v1_20_R3",
     "nms-v1_21",
     "nms-v1_21_3",

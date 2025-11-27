@@ -2,6 +2,8 @@ package icu.nyat.kusunoki.deenchantment.nms;
 
 import org.bukkit.enchantments.Enchantment;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +15,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class FallbackNmsBridge implements NmsBridge {
 
+    private static final Method REGISTER_METHOD;
+
+    static {
+        Method method = null;
+        try {
+            method = Enchantment.class.getDeclaredMethod("registerEnchantment", Enchantment.class);
+            method.setAccessible(true);
+        } catch (final NoSuchMethodException ignored) {
+            // Public registration API was removed (Paper 1.20.4+), so fallback support becomes unavailable.
+        }
+        REGISTER_METHOD = method;
+    }
+
     private final Map<String, Enchantment> registered = new ConcurrentHashMap<>();
 
     @Override
@@ -22,14 +37,19 @@ final class FallbackNmsBridge implements NmsBridge {
 
     @Override
     public boolean register(final Enchantment enchantment) {
-        if (enchantment == null) {
+        if (enchantment == null || REGISTER_METHOD == null) {
             return false;
         }
         try {
-            Enchantment.registerEnchantment(enchantment);
+            REGISTER_METHOD.invoke(null, enchantment);
             registered.put(enchantment.getKey().toString().toLowerCase(Locale.ROOT), enchantment);
             return true;
-        } catch (final IllegalArgumentException alreadyRegistered) {
+        } catch (final InvocationTargetException target) {
+            if (target.getCause() instanceof IllegalArgumentException) {
+                return false;
+            }
+            throw new RuntimeException("Failed to register enchantment", target.getCause());
+        } catch (final IllegalAccessException reflectionError) {
             return false;
         }
     }
