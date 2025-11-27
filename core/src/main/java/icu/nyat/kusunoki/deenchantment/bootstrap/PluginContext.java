@@ -7,7 +7,6 @@ import icu.nyat.kusunoki.deenchantment.command.subcommand.MigrateSubcommand;
 import icu.nyat.kusunoki.deenchantment.command.subcommand.PurificationSubcommand;
 import icu.nyat.kusunoki.deenchantment.command.subcommand.RandomSubcommand;
 import icu.nyat.kusunoki.deenchantment.command.subcommand.ReloadSubcommand;
-import icu.nyat.kusunoki.deenchantment.command.subcommand.StubSubcommand;
 import icu.nyat.kusunoki.deenchantment.command.subcommand.UpdateSubcommand;
 import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.config.PluginConfig;
@@ -24,7 +23,6 @@ import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import icu.nyat.kusunoki.deenchantment.version.VersionBridge;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -66,7 +64,7 @@ public final class PluginContext {
     this.metricsService = new MetricsService(plugin);
     this.commandRegistry = new CommandRegistry();
     this.versionBridge = new VersionBridge();
-    this.curseRegistry = new CurseRegistry(plugin, configService, logger, versionBridge);
+    this.curseRegistry = new CurseRegistry(configService, logger, versionBridge);
     this.enchantTools = new EnchantTools(plugin, configService, curseRegistry);
     this.curseBehaviors = new CurseBehaviorRegistry(plugin, configService, curseRegistry, enchantTools);
     this.entityDeEnchantCaller = new EntityDeEnchantCaller();
@@ -76,7 +74,7 @@ public final class PluginContext {
         registerDefaultCommands();
         this.loaded = true;
         updateDebugFlag();
-        logger.info("Loaded configuration for " + plugin.getName() + " " + plugin.getDescription().getVersion());
+        logger.info("Loaded configuration for " + plugin.getName() + " " + plugin.getPluginMeta().getVersion());
     }
 
     public void enable() {

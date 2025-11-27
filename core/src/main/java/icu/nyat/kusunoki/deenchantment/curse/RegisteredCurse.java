@@ -17,7 +17,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public final class RegisteredCurse extends Enchantment {
 
-    private final CurseDefinition definition;
+    private volatile CurseDefinition definition;
 
     public RegisteredCurse(final CurseDefinition definition) {
         super(definition.id().namespacedKey());
@@ -26,6 +26,13 @@ public final class RegisteredCurse extends Enchantment {
 
     public CurseDefinition definition() {
         return definition;
+    }
+
+    public void refreshDefinition(final CurseDefinition updated) {
+        if (!definition.id().equals(updated.id())) {
+            throw new IllegalArgumentException("Curse definition ID mismatch for " + getKey());
+        }
+        this.definition = updated;
     }
 
     @Override
