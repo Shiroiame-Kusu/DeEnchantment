@@ -1,5 +1,6 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.Delete
+import org.gradle.api.tasks.compile.JavaCompile
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -10,8 +11,12 @@ plugins {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
     withSourcesJar()
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
 }
 
 val pluginName: String by rootProject
@@ -22,6 +27,17 @@ val buildTimestamp: String = project.buildTimestamp()
 
 dependencies {
     implementation(project(":nms-api"))
+    runtimeOnly(project(":nms-v1_20_R1"))
+    runtimeOnly(project(":nms-v1_20_R2"))
+    runtimeOnly(project(":nms-v1_20_R3"))
+    runtimeOnly(project(":nms-v1_21"))
+    runtimeOnly(project(":nms-v1_21_3"))
+    runtimeOnly(project(":nms-v1_21_4"))
+    runtimeOnly(project(":nms-v1_21_5"))
+    runtimeOnly(project(":nms-v1_21_6"))
+    runtimeOnly(project(":nms-v1_21_7"))
+    runtimeOnly(project(":nms-v1_21_8"))
+    runtimeOnly(project(":nms-v1_21_10"))
 
     compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.7")

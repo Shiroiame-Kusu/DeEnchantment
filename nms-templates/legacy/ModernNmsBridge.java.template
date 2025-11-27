@@ -1,0 +1,348 @@
+package icu.nyat.kusunoki.deenchantment.nms.@NMS_PACKAGE@;
+
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
+import io.papermc.paper.enchantments.EnchantmentRarity;
+import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.enchantment.EnchantmentCategory;
+import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import @CRAFTBUKKIT_PACKAGE@.CraftEquipmentSlot;
+import @CRAFTBUKKIT_PACKAGE@.CraftRegistry;
+import @CRAFTBUKKIT_PACKAGE@.enchantments.CraftEnchantment;
+import @CRAFTBUKKIT_PACKAGE@.inventory.CraftItemStack;
+import @CRAFTBUKKIT_PACKAGE@.util.CraftNamespacedKey;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.enchantments.EnchantmentTarget;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
+import java.util.logging.Level;
+
+/**
+ * Modern (registry-driven) bridge for @MINECRAFT_VERSION_LABEL@ servers. Mirrors the
+ * 1.21.4 strategy so custom curses flow through Bukkit's registry instead of the
+ * removed {@code Enchantment.registerEnchantment} API.
+ */
+final class ModernNmsBridge implements NmsBridge {
+
+    private final CraftRegistry<Enchantment, net.minecraft.world.item.enchantment.Enchantment> bukkitRegistry;
+    private final MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> nmsRegistry;
+    private final Map<NamespacedKey, Enchantment> registered = new ConcurrentHashMap<>();
+    private final Field minecraftToBukkitField;
+    private final Field cacheField;
+    private final Field frozenField;
+    private final Field intrusiveHolderField;
+    private final BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment> originalMapper;
+    private final Constructor<? extends Enchantment> craftValueConstructor;
+    private final Constructor<? extends Enchantment> craftKeyConstructor;
+    private volatile boolean registryRemapped;
+
+    ModernNmsBridge() {
+        this.bukkitRegistry = resolveBukkitRegistry();
+        this.nmsRegistry = resolveNmsRegistry();
+        try {
+            this.minecraftToBukkitField = locateField(CraftRegistry.class, "minecraftToBukkit");
+            this.cacheField = locateField(CraftRegistry.class, "cache");
+            this.frozenField = locateField(MappedRegistry.class, "frozen");
+            this.intrusiveHolderField = locateField(MappedRegistry.class, "unregisteredIntrusiveHolders");
+            @SuppressWarnings("unchecked")
+            final BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment> mapper =
+                    (BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment>) minecraftToBukkitField.get(bukkitRegistry);
+            this.originalMapper = mapper;
+            this.craftValueConstructor = locateConstructor(CraftEnchantment.class, net.minecraft.world.item.enchantment.Enchantment.class);
+            this.craftKeyConstructor = locateConstructor(CraftEnchantment.class, NamespacedKey.class, net.minecraft.world.item.enchantment.Enchantment.class);
+            if (this.craftValueConstructor == null && this.craftKeyConstructor == null) {
+                throw new IllegalStateException("Unable to locate CraftEnchantment constructor signature");
+            }
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to initialize @MINECRAFT_VERSION_LABEL@ bridge", exception);
+        }
+    }
+
+    @Override
+    public void prepareRegistration() {
+        ensureRegistryMapper();
+        clearBukkitCache();
+        unfreezeRegistry();
+    }
+
+    @Override
+    public boolean register(final Enchantment enchantment) {
+        if (enchantment == null) {
+            return false;
+        }
+
+        final NamespacedKey key = enchantment.getKey();
+        registered.put(key, enchantment);
+
+        final ResourceLocation minecraftKey = CraftNamespacedKey.toMinecraft(key);
+        if (nmsRegistry.containsKey(minecraftKey)) {
+            return true;
+        }
+
+        try {
+            final net.minecraft.world.item.enchantment.Enchantment vanillaLike = createVanillaLikeEnchantment(enchantment);
+            nmsRegistry.createIntrusiveHolder(vanillaLike);
+            Registry.register(nmsRegistry, minecraftKey, vanillaLike);
+            return true;
+        } catch (final Throwable error) {
+            Bukkit.getLogger().log(Level.WARNING, "Failed to register enchantment " + key + " via @MINECRAFT_VERSION_LABEL@ bridge", error);
+            registered.remove(key);
+            return false;
+        }
+    }
+
+    @Override
+    public void freezeRegistration() {
+        nmsRegistry.freeze();
+    }
+
+    @Override
+    public void unregisterAll() {
+        registered.clear();
+        clearBukkitCache();
+    }
+
+    @Override
+    public boolean supportsHardReset() {
+        return false;
+    }
+
+    private void ensureRegistryMapper() {
+        if (registryRemapped) {
+            return;
+        }
+        synchronized (this) {
+            if (registryRemapped) {
+                return;
+            }
+            try {
+                minecraftToBukkitField.set(bukkitRegistry, createMapperFunction());
+                registryRemapped = true;
+            } catch (final IllegalAccessException exception) {
+                throw new IllegalStateException("Unable to override CraftRegistry mapper", exception);
+            }
+        }
+    }
+
+    private BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment> createMapperFunction() {
+        return (key, value) -> {
+            final Enchantment custom = registered.get(key);
+            if (custom != null) {
+                return custom;
+            }
+            if (originalMapper != null) {
+                return originalMapper.apply(key, value);
+            }
+            if (value == null) {
+                return null;
+            }
+            return adaptVanillaEnchantment(key, value);
+        };
+    }
+
+    private Enchantment adaptVanillaEnchantment(final NamespacedKey key, final net.minecraft.world.item.enchantment.Enchantment value) {
+        try {
+            if (craftValueConstructor != null) {
+                return craftValueConstructor.newInstance(value);
+            }
+            return craftKeyConstructor.newInstance(key, value);
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to adapt vanilla enchantment " + key, exception);
+        }
+    }
+
+    private void clearBukkitCache() {
+        try {
+            @SuppressWarnings("unchecked")
+            final Map<NamespacedKey, Enchantment> cache = (Map<NamespacedKey, Enchantment>) cacheField.get(bukkitRegistry);
+            cache.clear();
+        } catch (final IllegalAccessException exception) {
+            throw new IllegalStateException("Unable to clear CraftRegistry cache", exception);
+        }
+    }
+
+    private void unfreezeRegistry() {
+        try {
+            frozenField.setBoolean(nmsRegistry, false);
+            intrusiveHolderField.set(nmsRegistry, new IdentityHashMap<>());
+        } catch (final IllegalAccessException exception) {
+            throw new IllegalStateException("Unable to unfreeze enchantment registry", exception);
+        }
+        nmsRegistry.resetTags();
+    }
+
+    private net.minecraft.world.item.enchantment.Enchantment createVanillaLikeEnchantment(final Enchantment enchantment) {
+        final net.minecraft.world.item.enchantment.Enchantment.Rarity rarity = mapRarity(enchantment);
+        final EnchantmentCategory category = mapCategory(enchantment.getItemTarget());
+        final EquipmentSlot[] slots = mapSlots(enchantment.getActiveSlots());
+        return new DelegatingNmsEnchantment(rarity, category, slots, enchantment);
+    }
+
+    private static net.minecraft.world.item.enchantment.Enchantment.Rarity mapRarity(final Enchantment enchantment) {
+        final EnchantmentRarity rarity = enchantment.getRarity();
+        if (rarity == null) {
+            return net.minecraft.world.item.enchantment.Enchantment.Rarity.RARE;
+        }
+        return switch (rarity) {
+            case COMMON -> net.minecraft.world.item.enchantment.Enchantment.Rarity.COMMON;
+            case UNCOMMON -> net.minecraft.world.item.enchantment.Enchantment.Rarity.UNCOMMON;
+            case RARE -> net.minecraft.world.item.enchantment.Enchantment.Rarity.RARE;
+            case VERY_RARE -> net.minecraft.world.item.enchantment.Enchantment.Rarity.VERY_RARE;
+        };
+    }
+
+    private static EnchantmentCategory mapCategory(final EnchantmentTarget target) {
+        if (target == null) {
+            return EnchantmentCategory.VANISHABLE;
+        }
+        return switch (target) {
+            case ALL, VANISHABLE -> EnchantmentCategory.VANISHABLE;
+            case ARMOR -> EnchantmentCategory.ARMOR;
+            case ARMOR_FEET -> EnchantmentCategory.ARMOR_FEET;
+            case ARMOR_LEGS -> EnchantmentCategory.ARMOR_LEGS;
+            case ARMOR_TORSO -> EnchantmentCategory.ARMOR_CHEST;
+            case ARMOR_HEAD -> EnchantmentCategory.ARMOR_HEAD;
+            case WEAPON -> EnchantmentCategory.WEAPON;
+            case TOOL -> EnchantmentCategory.DIGGER;
+            case BOW -> EnchantmentCategory.BOW;
+            case FISHING_ROD -> EnchantmentCategory.FISHING_ROD;
+            case BREAKABLE -> EnchantmentCategory.BREAKABLE;
+            case WEARABLE -> EnchantmentCategory.WEARABLE;
+            case TRIDENT -> EnchantmentCategory.TRIDENT;
+            case CROSSBOW -> EnchantmentCategory.CROSSBOW;
+        };
+    }
+
+    private static EquipmentSlot[] mapSlots(final Set<org.bukkit.inventory.EquipmentSlot> slots) {
+        if (slots == null || slots.isEmpty()) {
+            return EquipmentSlot.values();
+        }
+        final List<EquipmentSlot> mapped = new ArrayList<>(slots.size());
+        for (final org.bukkit.inventory.EquipmentSlot slot : slots) {
+            final EquipmentSlot nms = CraftEquipmentSlot.getNMS(slot);
+            if (nms != null) {
+                mapped.add(nms);
+            }
+        }
+        if (mapped.isEmpty()) {
+            return EquipmentSlot.values();
+        }
+        return mapped.toArray(new EquipmentSlot[0]);
+    }
+
+    private static CraftRegistry<Enchantment, net.minecraft.world.item.enchantment.Enchantment> resolveBukkitRegistry() {
+        final org.bukkit.Registry<Enchantment> registry = org.bukkit.Registry.ENCHANTMENT;
+        if (!(registry instanceof CraftRegistry<?, ?> craft)) {
+            throw new IllegalStateException("Unexpected registry implementation: " + registry.getClass());
+        }
+        @SuppressWarnings("unchecked")
+        final CraftRegistry<Enchantment, net.minecraft.world.item.enchantment.Enchantment> enchantRegistry =
+                (CraftRegistry<Enchantment, net.minecraft.world.item.enchantment.Enchantment>) craft;
+        return enchantRegistry;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> resolveNmsRegistry() {
+        final Registry<net.minecraft.world.item.enchantment.Enchantment> registry =
+                CraftRegistry.getMinecraftRegistry(Registries.ENCHANTMENT);
+        if (!(registry instanceof MappedRegistry<?> mapped)) {
+            throw new IllegalStateException("Unexpected NMS registry implementation: " + registry.getClass());
+        }
+        return (MappedRegistry<net.minecraft.world.item.enchantment.Enchantment>) mapped;
+    }
+
+    private static Field locateField(final Class<?> owner, final String name) throws NoSuchFieldException {
+        final Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        return field;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Constructor<? extends Enchantment> locateConstructor(final Class<?> owner, final Class<?>... parameters) {
+        try {
+            final Constructor<?> constructor = owner.getDeclaredConstructor(parameters);
+            constructor.setAccessible(true);
+            return (Constructor<? extends Enchantment>) constructor;
+        } catch (final NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static final class DelegatingNmsEnchantment extends net.minecraft.world.item.enchantment.Enchantment {
+
+        private final Enchantment delegate;
+        private final int minLevel;
+        private final int maxLevel;
+
+        DelegatingNmsEnchantment(final net.minecraft.world.item.enchantment.Enchantment.Rarity rarity,
+                                 final EnchantmentCategory category,
+                                 final EquipmentSlot[] slots,
+                                 final Enchantment delegate) {
+            super(rarity, category, slots);
+            this.delegate = Objects.requireNonNull(delegate, "delegate enchantment");
+            this.minLevel = Math.max(1, delegate.getStartLevel());
+            this.maxLevel = Math.max(this.minLevel, delegate.getMaxLevel());
+        }
+
+        @Override
+        public int getMinLevel() {
+            return minLevel;
+        }
+
+        @Override
+        public int getMaxLevel() {
+            return maxLevel;
+        }
+
+        @Override
+        public int getMinCost(final int level) {
+            return Math.max(1, level * 5);
+        }
+
+        @Override
+        public int getMaxCost(final int level) {
+            return getMinCost(level) + 10;
+        }
+
+        @Override
+        public boolean isTreasureOnly() {
+            return delegate.isTreasure();
+        }
+
+        @Override
+        public boolean isCurse() {
+            return delegate.isCursed();
+        }
+
+        @Override
+        public boolean isTradeable() {
+            return delegate.isTradeable();
+        }
+
+        @Override
+        public boolean isDiscoverable() {
+            return delegate.isDiscoverable();
+        }
+
+        @Override
+        public boolean canEnchant(final net.minecraft.world.item.ItemStack stack) {
+            if (stack == null) {
+                return false;
+            }
+            return delegate.canEnchantItem(CraftItemStack.asCraftMirror(stack));
+        }
+    }
+}

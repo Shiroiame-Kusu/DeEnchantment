@@ -12,6 +12,8 @@ import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.config.PluginConfig;
 import icu.nyat.kusunoki.deenchantment.curse.CurseRegistry;
 import icu.nyat.kusunoki.deenchantment.curse.handler.CurseBehaviorRegistry;
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridgeLoader;
 import icu.nyat.kusunoki.deenchantment.hook.HookManager;
 import icu.nyat.kusunoki.deenchantment.listener.controller.EntityDeEnchantCaller;
 import icu.nyat.kusunoki.deenchantment.listener.controller.GameplayControllerRegistry;
@@ -20,7 +22,6 @@ import icu.nyat.kusunoki.deenchantment.task.EquipmentScanner;
 import icu.nyat.kusunoki.deenchantment.task.TaskScheduler;
 import icu.nyat.kusunoki.deenchantment.util.logging.PluginLogger;
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
-import icu.nyat.kusunoki.deenchantment.version.VersionBridge;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -39,7 +40,7 @@ public final class PluginContext {
     private TaskScheduler scheduler;
     private MetricsService metricsService;
     private CommandRegistry commandRegistry;
-    private VersionBridge versionBridge;
+    private NmsBridge nmsBridge;
     private CurseRegistry curseRegistry;
     private EnchantTools enchantTools;
     private CurseBehaviorRegistry curseBehaviors;
@@ -63,8 +64,9 @@ public final class PluginContext {
         this.scheduler = new TaskScheduler(plugin);
     this.metricsService = new MetricsService(plugin);
     this.commandRegistry = new CommandRegistry();
-    this.versionBridge = new VersionBridge();
-    this.curseRegistry = new CurseRegistry(configService, logger, versionBridge);
+    final NmsBridgeLoader bridgeLoader = new NmsBridgeLoader(plugin, logger);
+    this.nmsBridge = bridgeLoader.load();
+    this.curseRegistry = new CurseRegistry(configService, logger, nmsBridge);
     this.enchantTools = new EnchantTools(plugin, configService, curseRegistry);
     this.curseBehaviors = new CurseBehaviorRegistry(plugin, configService, curseRegistry, enchantTools);
     this.entityDeEnchantCaller = new EntityDeEnchantCaller();

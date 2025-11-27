@@ -1,0 +1,34 @@
+package icu.nyat.kusunoki.deenchantment.nms.@NMS_PACKAGE@;
+
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridgeFactory;
+import org.bukkit.Bukkit;
+
+/**
+ * Provides the registry-based bridge for @MINECRAFT_VERSION_LABEL@ servers.
+ */
+public final class ModernNmsBridgeFactory implements NmsBridgeFactory {
+
+    private static final int PRIORITY = @FACTORY_PRIORITY@;
+
+    @Override
+    public boolean isCompatible() {
+        final String minecraftVersion = Bukkit.getMinecraftVersion();
+        return minecraftVersion != null && minecraftVersion.startsWith("@MINECRAFT_VERSION_PREFIX@");
+    }
+
+    @Override
+    public int priority() {
+        return PRIORITY;
+    }
+
+    @Override
+    public String describe() {
+        return "Modern Bukkit enchantment bridge (@MINECRAFT_VERSION_LABEL@)";
+    }
+
+    @Override
+    public NmsBridge create() {
+        return new ModernNmsBridge();
+    }
+}

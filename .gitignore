@@ -6,7 +6,7 @@ build/
 /.vscode/
 .DS_Store
 *.log
-legacy/
+/legacy/
 bin/
 output/
 docs/

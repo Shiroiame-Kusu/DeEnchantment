@@ -3,8 +3,8 @@ package icu.nyat.kusunoki.deenchantment.curse;
 import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.config.CurseCatalog;
 import icu.nyat.kusunoki.deenchantment.config.PluginConfig;
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
 import icu.nyat.kusunoki.deenchantment.util.logging.PluginLogger;
-import icu.nyat.kusunoki.deenchantment.version.VersionBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.permissions.Permission;
@@ -21,31 +21,31 @@ public final class CurseRegistry {
 
     private final ConfigService configService;
     private final PluginLogger logger;
-    private final VersionBridge versionBridge;
+    private final NmsBridge nmsBridge;
 
     private final Map<CurseId, RegisteredCurse> active = new EnumMap<>(CurseId.class);
     private final Map<CurseId, Permission> permissions = new EnumMap<>(CurseId.class);
 
     public CurseRegistry(final ConfigService configService,
                          final PluginLogger logger,
-                         final VersionBridge versionBridge) {
+                         final NmsBridge nmsBridge) {
         this.configService = configService;
         this.logger = logger;
-        this.versionBridge = versionBridge;
+        this.nmsBridge = nmsBridge;
     }
 
     public void reload() {
         final PluginConfig config = configService.plugin();
         final CurseCatalog catalog = configService.curses();
-        final boolean hardReset = versionBridge.supportsHardReset();
+        final boolean hardReset = nmsBridge.supportsHardReset();
 
         if (hardReset) {
-            versionBridge.unregisterAll();
+            nmsBridge.unregisterAll();
             active.clear();
         }
 
         clearPermissions();
-        versionBridge.prepareRegistration();
+        nmsBridge.prepareRegistration();
 
         int registered = 0;
         int total = 0;
@@ -62,18 +62,20 @@ public final class CurseRegistry {
                 curse = findExisting(id);
             }
 
-            if (curse != null) {
-                curse.refreshDefinition(definition);
-                active.put(id, curse);
-            } else {
-                final RegisteredCurse registeredCurse = versionBridge.register(new RegisteredCurse(definition));
-                if (registeredCurse == null) {
-                    logger.warn("Unable to register curse " + definition.displayName());
-                    continue;
+            if (curse == null) {
+                curse = new RegisteredCurse(definition);
+                if (!nmsBridge.register(curse)) {
+                    final RegisteredCurse fallback = findExisting(id);
+                    if (fallback == null) {
+                        logger.warn("Unable to register curse " + definition.displayName());
+                        continue;
+                    }
+                    curse = fallback;
                 }
-                curse = registeredCurse;
-                active.put(id, curse);
             }
+
+            curse.refreshDefinition(definition);
+            active.put(id, curse);
 
             final Permission permission = createPermission(id);
             permissions.put(id, permission);
@@ -84,14 +86,14 @@ public final class CurseRegistry {
             }
         }
 
-        versionBridge.freezeRegistration();
+        nmsBridge.freezeRegistration();
         logger.info("Registered " + registered + "/" + total + " curses");
     }
 
     public void unregisterAll() {
         active.clear();
         clearPermissions();
-        versionBridge.unregisterAll();
+        nmsBridge.unregisterAll();
     }
 
     private Permission createPermission(final CurseId id) {

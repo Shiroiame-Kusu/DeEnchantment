@@ -1,0 +1,295 @@
+package icu.nyat.kusunoki.deenchantment.nms.@NMS_PACKAGE@;
+
+import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
+import io.papermc.paper.registry.legacy.DelayedRegistry;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Holder.Reference;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import org.bukkit.craftbukkit.CraftRegistry;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.util.CraftNamespacedKey;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.craftbukkit.enchantments.CraftEnchantment;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
+import java.util.logging.Level;
+import javax.annotation.Nullable;
+
+/**
+ * Modern (@MINECRAFT_VERSION_LABEL@) bridge that mirrors EcoEnchants' registry replacement so we
+ * can inject custom enchantments despite Bukkit removing
+ * {@code Enchantment.registerEnchantment}.
+ */
+final class ModernNmsBridge implements NmsBridge {
+
+    private final CraftServer craftServer = (CraftServer) Bukkit.getServer();
+    private final MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> nmsRegistry;
+    private final org.bukkit.Registry<Enchantment> bukkitRegistry;
+    private final Map<NamespacedKey, Enchantment> registered = new ConcurrentHashMap<>();
+    private final Field frozenField;
+    private final Field allTagsField;
+    private final Field unregisteredIntrusiveHoldersField;
+    private final Field minecraftToBukkitField;
+    private final Field cacheField;
+    private final Object originalMapper;
+    private final Constructor<?> registryTypeMapperConstructor;
+    private volatile boolean registryRemapped;
+
+    ModernNmsBridge() {
+        this.nmsRegistry = lookupRegistry();
+        this.bukkitRegistry = lookupBukkitRegistry();
+        try {
+            this.frozenField = locateFrozenField();
+            this.allTagsField = locateAllTagsField();
+            this.unregisteredIntrusiveHoldersField = locateUnregisteredField();
+            this.minecraftToBukkitField = locateField(CraftRegistry.class, "minecraftToBukkit");
+            this.cacheField = locateField(CraftRegistry.class, "cache");
+            this.originalMapper = minecraftToBukkitField.get(bukkitRegistry);
+            this.registryTypeMapperConstructor = locateRegistryTypeMapper();
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to initialize NMS bridge", exception);
+        }
+    }
+
+    @Override
+    public void prepareRegistration() {
+        ensureRegistryMapper();
+        clearBukkitCache();
+        unfreezeRegistry();
+    }
+
+    @Override
+    public boolean register(final Enchantment enchantment) {
+        if (enchantment == null) {
+            return false;
+        }
+
+        final NamespacedKey key = enchantment.getKey();
+        registered.put(key, enchantment);
+
+        final ResourceLocation minecraftKey = CraftNamespacedKey.toMinecraft(key);
+        if (nmsRegistry.containsKey(minecraftKey)) {
+            return true;
+        }
+
+        try {
+            final net.minecraft.world.item.enchantment.Enchantment vanillaLike = createVanillaLikeEnchantment(enchantment);
+            nmsRegistry.createIntrusiveHolder(vanillaLike);
+            Registry.register(nmsRegistry, minecraftKey, vanillaLike);
+            return true;
+        } catch (final Throwable error) {
+            Bukkit.getLogger().log(Level.WARNING, "Failed to register enchantment " + key + " via modern bridge", error);
+            registered.remove(key);
+            return false;
+        }
+    }
+
+    @Override
+    public void freezeRegistration() {
+        nmsRegistry.freeze();
+    }
+
+    @Override
+    public void unregisterAll() {
+        registered.clear();
+        clearBukkitCache();
+    }
+
+    @Override
+    public boolean supportsHardReset() {
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> lookupRegistry() {
+        return (MappedRegistry<net.minecraft.world.item.enchantment.Enchantment>) craftServer.getServer()
+                .registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT);
+    }
+
+    @SuppressWarnings("unchecked")
+    private org.bukkit.Registry<Enchantment> lookupBukkitRegistry() {
+        final DelayedRegistry<Enchantment, ?> delayed = (DelayedRegistry<Enchantment, ?>) org.bukkit.Registry.ENCHANTMENT;
+        return delayed.delegate();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void ensureRegistryMapper() {
+        if (registryRemapped) {
+            return;
+        }
+        synchronized (this) {
+            if (registryRemapped) {
+                return;
+            }
+            try {
+                final Object mapper = createRegistryMapperBridge();
+                minecraftToBukkitField.setAccessible(true);
+                minecraftToBukkitField.set(bukkitRegistry, mapper);
+                registryRemapped = true;
+            } catch (final ReflectiveOperationException exception) {
+                throw new IllegalStateException("Unable to replace CraftRegistry mapper", exception);
+            }
+        }
+    }
+
+    private BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment> createMapperFunction() {
+        return (key, value) -> {
+            final Enchantment custom = registered.get(key);
+            if (custom != null) {
+                return custom;
+            }
+            return applyOriginalMapper(key, value);
+        };
+    }
+
+    private void unfreezeRegistry() {
+        try {
+            frozenField.setBoolean(nmsRegistry, false);
+            unregisteredIntrusiveHoldersField.set(
+                nmsRegistry,
+                new IdentityHashMap<net.minecraft.world.item.enchantment.Enchantment, Reference<net.minecraft.world.item.enchantment.Enchantment>>()
+            );
+            allTagsField.set(nmsRegistry, createUnboundTagSet());
+        } catch (final IllegalAccessException exception) {
+            throw new IllegalStateException("Unable to unfreeze enchantment registry", exception);
+        }
+    }
+
+    private Object createUnboundTagSet() {
+        final Class<?>[] innerClasses = MappedRegistry.class.getDeclaredClasses();
+        if (innerClasses.length == 0) {
+            throw new IllegalStateException("Unable to locate MappedRegistry tag helpers");
+        }
+        final Class<?> helper = innerClasses[0];
+        for (final Method method : helper.getDeclaredMethods()) {
+            if (!Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0) {
+                continue;
+            }
+            method.setAccessible(true);
+            try {
+                return method.invoke(null);
+            } catch (final ReflectiveOperationException ignored) {
+                // Try the next method.
+            }
+        }
+        throw new IllegalStateException("Unable to construct tag set for enchantment registry");
+    }
+
+    private net.minecraft.world.item.enchantment.Enchantment createVanillaLikeEnchantment(final Enchantment enchantment) {
+        final int weight = Math.max(1, enchantment.getWeight());
+        final int maxLevel = Math.max(1, enchantment.getMaxLevel());
+        final int minCost = Math.max(1, enchantment.getMinModifiedCost(enchantment.getStartLevel()));
+        final int maxCost = Math.max(minCost, enchantment.getMaxModifiedCost(maxLevel));
+        final int anvilCost = Math.max(0, enchantment.getAnvilCost());
+
+        final net.minecraft.world.item.enchantment.Enchantment.EnchantmentDefinition definition = net.minecraft.world.item.enchantment.Enchantment.definition(
+            HolderSet.empty(),
+                weight,
+                maxLevel,
+                net.minecraft.world.item.enchantment.Enchantment.constantCost(minCost),
+                net.minecraft.world.item.enchantment.Enchantment.constantCost(maxCost),
+                anvilCost
+        );
+
+        return net.minecraft.world.item.enchantment.Enchantment.enchantment(definition)
+                .build(CraftNamespacedKey.toMinecraft(enchantment.getKey()));
+    }
+
+    private void clearBukkitCache() {
+        try {
+            cacheField.set(bukkitRegistry, new ConcurrentHashMap<NamespacedKey, Enchantment>());
+        } catch (final IllegalAccessException exception) {
+            throw new IllegalStateException("Unable to clear CraftRegistry cache", exception);
+        }
+    }
+
+    private Object createRegistryMapperBridge() {
+        final BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment> mapperFunction = createMapperFunction();
+        if (registryTypeMapperConstructor == null) {
+            return mapperFunction;
+        }
+        try {
+            return registryTypeMapperConstructor.newInstance(mapperFunction);
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to instantiate RegistryTypeMapper bridge", exception);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Enchantment applyOriginalMapper(final NamespacedKey key, final net.minecraft.world.item.enchantment.Enchantment value) {
+        if (originalMapper == null) {
+            return null;
+        }
+        if (originalMapper instanceof BiFunction<?, ?, ?> function) {
+            return ((BiFunction<NamespacedKey, net.minecraft.world.item.enchantment.Enchantment, Enchantment>) function).apply(key, value);
+        }
+        try {
+            final Method applyMethod = originalMapper.getClass().getMethod("apply", Object.class, Object.class);
+            applyMethod.setAccessible(true);
+            return (Enchantment) applyMethod.invoke(originalMapper, key, value);
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to delegate to original CraftRegistry mapper", exception);
+        }
+    }
+
+    private static Field locateFrozenField() {
+        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
+            if (field.getType().isPrimitive()) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw new IllegalStateException("Unable to locate MappedRegistry#frozen field");
+    }
+
+    private static Field locateAllTagsField() {
+        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
+            if (field.getType().getName().contains("TagSet")) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw new IllegalStateException("Unable to locate MappedRegistry tag field");
+    }
+
+    private static Field locateUnregisteredField() {
+        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
+            if (field.getType() == Map.class && field.isAnnotationPresent(Nullable.class)) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw new IllegalStateException("Unable to locate MappedRegistry intrusive holder field");
+    }
+
+    private static Field locateField(final Class<?> owner, final String name) throws NoSuchFieldException {
+        final Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        return field;
+    }
+
+    private static Constructor<?> locateRegistryTypeMapper() {
+        try {
+            final Class<?> mapperClass = Class.forName("io.papermc.paper.registry.entry.RegistryTypeMapper");
+            final Constructor<?> constructor = mapperClass.getDeclaredConstructor(BiFunction.class);
+            constructor.setAccessible(true);
+            return constructor;
+        } catch (final ClassNotFoundException | NoSuchMethodException exception) {
+            return null;
+        }
+    }
+}
