@@ -7,20 +7,24 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Coordinates all YAML-backed configuration files.
  */
 public final class ConfigService {
 
+    private static final String DEFAULT_LANGUAGE = "zh_CN";
+
     private final JavaPlugin plugin;
     private final PluginLogger logger;
 
     private PluginConfig pluginConfig;
     private MessageConfig messageConfig;
+    private LanguageConfig languageConfig;
     private CurseCatalog curseCatalog;
     private FileConfiguration cachedConfig;
-    private FileConfiguration cachedMessages;
+    private FileConfiguration cachedLanguage;
     private FileConfiguration cachedCurses;
 
     public ConfigService(final JavaPlugin plugin, final PluginLogger logger) {
@@ -36,10 +40,12 @@ public final class ConfigService {
     public void reload() {
         plugin.reloadConfig();
         this.cachedConfig = copyConfiguration(plugin.getConfig());
-    this.cachedMessages = load("messages.yml");
-    this.cachedCurses = loadDeEnchantments();
         this.pluginConfig = PluginConfig.from(cachedConfig);
-        this.messageConfig = new MessageConfig(cachedMessages);
+        this.cachedLanguage = loadLanguage();
+        this.cachedCurses = loadDeEnchantments();
+        // MessageConfig now uses language file for localized messages
+        this.messageConfig = new MessageConfig(cachedLanguage);
+        this.languageConfig = new LanguageConfig(cachedLanguage, pluginConfig.language());
         this.curseCatalog = CurseCatalog.from(cachedCurses);
     }
 
@@ -66,19 +72,9 @@ public final class ConfigService {
         config.set("debug", legacy.getBoolean("Debug", config.getBoolean("debug", false)));
         saveConfiguration(config, new File(plugin.getDataFolder(), "config.yml"));
 
-        final FileConfiguration messages = ensureMessages();
-        final String legacyPrefix = legacy.getString("Prefix");
-        if (legacyPrefix != null) {
-            messages.set("prefix", legacyPrefix);
-        }
-        saveConfiguration(messages, new File(plugin.getDataFolder(), "messages.yml"));
-
         try {
             if (cachedConfig != null) {
                 cachedConfig.loadFromString(config.saveToString());
-            }
-            if (cachedMessages != null) {
-                cachedMessages.loadFromString(messages.saveToString());
             }
         } catch (final Exception exception) {
             logger.error("Failed to refresh cached configurations", exception);
@@ -92,13 +88,6 @@ public final class ConfigService {
             cachedConfig = copyConfiguration(plugin.getConfig());
         }
         return cachedConfig;
-    }
-
-    private FileConfiguration ensureMessages() {
-        if (cachedMessages == null) {
-            cachedMessages = load("messages.yml");
-        }
-        return cachedMessages;
     }
 
     private FileConfiguration load(final String fileName) {
@@ -118,6 +107,44 @@ public final class ConfigService {
             plugin.saveResource("DeEnchantments.yml", false);
         }
         return YamlConfiguration.loadConfiguration(target);
+    }
+
+    private FileConfiguration loadLanguage() {
+        final String locale = cachedConfig.getString("language", DEFAULT_LANGUAGE);
+        final String langPath = "lang/" + locale + ".yml";
+        final File langFolder = new File(plugin.getDataFolder(), "lang");
+        if (!langFolder.exists()) {
+            langFolder.mkdirs();
+        }
+        // Save default language files
+        saveLanguageResource("lang/zh_CN.yml");
+        saveLanguageResource("lang/en_US.yml");
+        
+        final File target = new File(plugin.getDataFolder(), langPath);
+        if (!target.exists()) {
+            // Fall back to default language if specified language file doesn't exist
+            logger.info("Language file " + langPath + " not found, falling back to " + DEFAULT_LANGUAGE);
+            final File fallback = new File(plugin.getDataFolder(), "lang/" + DEFAULT_LANGUAGE + ".yml");
+            if (fallback.exists()) {
+                return YamlConfiguration.loadConfiguration(fallback);
+            }
+            // Create an empty configuration as last resort
+            return new YamlConfiguration();
+        }
+        return YamlConfiguration.loadConfiguration(target);
+    }
+
+    private void saveLanguageResource(final String resourcePath) {
+        final File target = new File(plugin.getDataFolder(), resourcePath);
+        if (!target.exists()) {
+            try (final InputStream in = plugin.getResource(resourcePath)) {
+                if (in != null) {
+                    java.nio.file.Files.copy(in, target.toPath());
+                }
+            } catch (final IOException exception) {
+                logger.error("Failed to save language resource: " + resourcePath, exception);
+            }
+        }
     }
 
     private void migrateLegacyCurses(final File destination) {
@@ -165,5 +192,9 @@ public final class ConfigService {
 
     public CurseCatalog curses() {
         return curseCatalog;
+    }
+
+    public LanguageConfig language() {
+        return languageConfig;
     }
 }

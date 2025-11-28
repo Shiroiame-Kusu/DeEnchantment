@@ -1,4 +1,4 @@
-package icu.nyat.kusunoki.deenchantment.nms.@NMS_PACKAGE@;
+package icu.nyat.kusunoki.deenchantment.nms.v1_20_5;
 
 import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
 import org.bukkit.Bukkit;
@@ -14,8 +14,8 @@ import java.util.function.BiFunction;
 import java.util.logging.Level;
 
 /**
- * Legacy bridge for @MINECRAFT_VERSION_LABEL@ servers (reobfuscated/Spigot mappings).
- * Uses pure reflection to interact with NMS registries since class names are obfuscated at runtime.
+ * Bridge for 1.20.5-1.20.6 servers (Mojang mappings via paperweight).
+ * Uses reflection to interact with NMS registries due to API changes in this version.
  */
 final class ModernNmsBridge implements NmsBridge {
 
@@ -33,7 +33,7 @@ final class ModernNmsBridge implements NmsBridge {
     private final Field cacheField;
     private final Method registerMethod;
     private final int registerMethodParamCount;  // 2, 3, or 4 params
-    private final Object lifecycleStable;  // Lifecycle.STABLE constant
+    private final Object registrationInfo;  // RegistrationInfo.BUILT_IN or Lifecycle.STABLE
     private final Method containsKeyMethod;
     private final Method createIntrusiveHolderMethod;
     private final Method freezeMethod;
@@ -76,15 +76,53 @@ final class ModernNmsBridge implements NmsBridge {
             // Locate NMS registry methods
             this.registerMethod = findRegisterMethod(nmsRegistryClass);
             this.registerMethodParamCount = this.registerMethod.getParameterCount();
-            this.lifecycleStable = getLifecycleStable();
+            this.registrationInfo = getRegistrationInfo(this.registerMethod);
             this.getNextIdMethod = (registerMethodParamCount == 4) ? findSizeMethod(nmsRegistryClass) : null;
             this.containsKeyMethod = findContainsKeyMethod(nmsRegistryClass);
             this.createIntrusiveHolderMethod = findSingleArgMethod(nmsRegistryClass, "createIntrusiveHolder", "f");
             this.freezeMethod = findNoArgMethod(nmsRegistryClass, "freeze", "l");
             
         } catch (final ReflectiveOperationException exception) {
-            throw new IllegalStateException("Unable to initialize @MINECRAFT_VERSION_LABEL@ bridge", exception);
+            throw new IllegalStateException("Unable to initialize 1.20.5/1.20.6 bridge", exception);
         }
+    }
+    
+    /**
+     * Gets the registration info object based on the register method's parameter type.
+     * In 1.20.5+, this is RegistrationInfo.BUILT_IN; in older versions it's Lifecycle.stable().
+     */
+    private static Object getRegistrationInfo(final Method registerMethod) throws ReflectiveOperationException {
+        if (registerMethod.getParameterCount() < 3) {
+            return null;  // 2-param method doesn't need this
+        }
+        
+        final Class<?> thirdParam = registerMethod.getParameterTypes()[2];
+        final String paramName = thirdParam.getSimpleName();
+        
+        // Try RegistrationInfo first (1.20.5+)
+        if (paramName.contains("RegistrationInfo")) {
+            // Get RegistrationInfo.BUILT_IN static field
+            for (final Field field : thirdParam.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) &&
+                    field.getType() == thirdParam &&
+                    (field.getName().equals("BUILT_IN") || field.getName().equals("a"))) {
+                    field.setAccessible(true);
+                    return field.get(null);
+                }
+            }
+            // Try to find any static field of the same type
+            for (final Field field : thirdParam.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) &&
+                    field.getType() == thirdParam) {
+                    field.setAccessible(true);
+                    return field.get(null);
+                }
+            }
+            throw new NoSuchFieldException("Cannot find RegistrationInfo.BUILT_IN");
+        }
+        
+        // Fall back to Lifecycle.stable() for older versions
+        return getLifecycleStable();
     }
     
     /**
@@ -179,18 +217,18 @@ final class ModernNmsBridge implements NmsBridge {
             
             // Register based on method signature:
             // - 2-param: (ResourceKey, T) - newer versions without Lifecycle
-            // - 3-param: (ResourceKey, T, Lifecycle) - most 1.20.x versions
+            // - 3-param: (ResourceKey, T, RegistrationInfo/Lifecycle) - 1.20.5+ or older
             // - 4-param: (int, ResourceKey, T, Lifecycle) - with explicit ID
             switch (registerMethodParamCount) {
                 case 2:
                     registerMethod.invoke(nmsRegistry, resourceKey, vanillaLike);
                     break;
                 case 3:
-                    registerMethod.invoke(nmsRegistry, resourceKey, vanillaLike, lifecycleStable);
+                    registerMethod.invoke(nmsRegistry, resourceKey, vanillaLike, registrationInfo);
                     break;
                 case 4:
                     final int nextId = getNextId();
-                    registerMethod.invoke(nmsRegistry, nextId, resourceKey, vanillaLike, lifecycleStable);
+                    registerMethod.invoke(nmsRegistry, nextId, resourceKey, vanillaLike, registrationInfo);
                     break;
                 default:
                     throw new IllegalStateException("Unexpected register method param count: " + registerMethodParamCount);
@@ -198,7 +236,7 @@ final class ModernNmsBridge implements NmsBridge {
             
             return true;
         } catch (final Throwable error) {
-            Bukkit.getLogger().log(Level.WARNING, "Failed to register enchantment " + key + " via @MINECRAFT_VERSION_LABEL@ bridge", error);
+            Bukkit.getLogger().log(Level.WARNING, "Failed to register enchantment " + key + " via 1.20.5/1.20.6 bridge", error);
             registered.remove(key);
             return false;
         }
@@ -335,7 +373,7 @@ final class ModernNmsBridge implements NmsBridge {
         }
         
         // Get the underlying NMS enchantment from CraftEnchantment
-        final Class<?> craftEnchantmentClass = Class.forName("@CRAFTBUKKIT_PACKAGE@.enchantments.CraftEnchantment");
+        final Class<?> craftEnchantmentClass = Class.forName("org.bukkit.craftbukkit.enchantments.CraftEnchantment");
         final Method getHandleMethod = craftEnchantmentClass.getMethod("getHandle");
         return getHandleMethod.invoke(protection);
     }
@@ -487,10 +525,28 @@ final class ModernNmsBridge implements NmsBridge {
     private static Method findRegisterMethod(final Class<?> registryClass) throws NoSuchMethodException {
         // In obfuscated builds, method names can be anything
         // Looking for patterns:
-        // - a(ResourceKey, Object, Lifecycle) -> 3 params
-        // - a(int, ResourceKey, Object, Lifecycle) -> 4 params
+        // - (ResourceKey, Object, RegistrationInfo) -> 3 params (1.20.5+)
+        // - (ResourceKey, Object, Lifecycle) -> 3 params (older)
+        // - (int, ResourceKey, Object, Lifecycle) -> 4 params
         
-        // First priority: 3-param method (ResourceKey, Object, Lifecycle)
+        // First priority: 3-param method (ResourceKey, Object, RegistrationInfo) - 1.20.5+
+        for (Class<?> c = registryClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (final Method method : c.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers()) &&
+                    method.getParameterCount() == 3) {
+                    final Class<?>[] params = method.getParameterTypes();
+                    // Check for (ResourceKey, Object, RegistrationInfo) pattern
+                    if (params[0].getSimpleName().contains("ResourceKey") &&
+                        params[2].getSimpleName().contains("RegistrationInfo")) {
+                        method.setAccessible(true);
+                        Bukkit.getLogger().info("[DeEnchantment] Found 3-param register method with RegistrationInfo: " + method.getName());
+                        return method;
+                    }
+                }
+            }
+        }
+        
+        // Second priority: 3-param method (ResourceKey, Object, Lifecycle)
         for (Class<?> c = registryClass; c != null && c != Object.class; c = c.getSuperclass()) {
             for (final Method method : c.getDeclaredMethods()) {
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers()) &&
@@ -500,14 +556,14 @@ final class ModernNmsBridge implements NmsBridge {
                     if (params[0].getSimpleName().contains("ResourceKey") &&
                         params[2].getSimpleName().contains("Lifecycle")) {
                         method.setAccessible(true);
-                        Bukkit.getLogger().info("[DeEnchantment] Found 3-param register method: " + method.getName());
+                        Bukkit.getLogger().info("[DeEnchantment] Found 3-param register method with Lifecycle: " + method.getName());
                         return method;
                     }
                 }
             }
         }
         
-        // Second priority: 4-param method (int, ResourceKey, Object, Lifecycle)
+        // Third priority: 4-param method (int, ResourceKey, Object, Lifecycle)
         for (Class<?> c = registryClass; c != null && c != Object.class; c = c.getSuperclass()) {
             for (final Method method : c.getDeclaredMethods()) {
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers()) &&

@@ -2,26 +2,22 @@ package icu.nyat.kusunoki.deenchantment.curse.handler;
 
 import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.curse.RegisteredCurse;
-import icu.nyat.kusunoki.deenchantment.listener.event.DePlayerEquipmentChangeEvent;
+import icu.nyat.kusunoki.deenchantment.listener.event.DeEntityHurtEvent;
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Periodically damages sprinting players wearing the cursed Thorns armor.
+ * When the wearer takes damage from an entity, deals additional damage to the wearer instead of reflecting it.
+ * (Reverse thorns - hurts self more when hit)
  */
 public final class ThornsCurseHandler extends AbstractCurseHandler {
 
-    private final Map<UUID, ThornsMonitor> tasks = new ConcurrentHashMap<>();
     private final double chanceRate;
     private final double damageRate;
 
@@ -30,83 +26,37 @@ public final class ThornsCurseHandler extends AbstractCurseHandler {
                               final EnchantTools enchantTools,
                               final RegisteredCurse curse) {
         super(plugin, configService, enchantTools, curse);
-        this.chanceRate = Math.max(0D, configDouble(0.05D, "chance-rate", "chanceRate"));
+        this.chanceRate = Math.max(0D, configDouble(0.15D, "chance-rate", "chanceRate"));
         this.damageRate = Math.max(0D, configDouble(0.5D, "damage-rate", "damageRate"));
     }
 
     @EventHandler(ignoreCancelled = true)
-    public void onEquipmentChange(final DePlayerEquipmentChangeEvent event) {
-        final Player player = event.getPlayer();
-        final UUID uuid = player.getUniqueId();
-        if (!hasPermission(player)) {
-            removeTask(uuid);
-            return;
-        }
+    public void onEntityHurt(final DeEntityHurtEvent event) {
         final int level = getLevel(event);
         if (level <= 0) {
-            removeTask(uuid);
             return;
         }
-        final ThornsMonitor monitor = tasks.computeIfAbsent(uuid, key -> {
-            final ThornsMonitor runner = new ThornsMonitor(player);
-            runner.runTaskTimerAsynchronously(plugin, 0L, 10L);
-            return runner;
-        });
-        monitor.setLevel(level);
-    }
-
-    @EventHandler
-    public void onQuit(final PlayerQuitEvent event) {
-        removeTask(event.getPlayer().getUniqueId());
-    }
-
-    private void removeTask(final UUID uuid) {
-        final ThornsMonitor monitor = tasks.remove(uuid);
-        if (monitor != null) {
-            monitor.cancel();
+        final LivingEntity victim = event.getEntity();
+        if (!hasPermission(victim)) {
+            return;
         }
-    }
-
-    @Override
-    public void disable() {
-        tasks.values().forEach(BukkitRunnable::cancel);
-        tasks.clear();
-    }
-
-    private final class ThornsMonitor extends BukkitRunnable {
-
-        private final Player player;
-        private volatile double chance;
-        private volatile double damage;
-
-        private ThornsMonitor(final Player player) {
-            this.player = player;
+        // Only trigger when damaged by an entity
+        if (!(event.getDelegate() instanceof EntityDamageByEntityEvent damageByEntity)) {
+            return;
         }
-
-        private void setLevel(final int level) {
-            this.chance = Math.min(1.0D, chanceRate * level);
-            this.damage = Math.max(0D, damageRate * level);
+        final Entity damager = damageByEntity.getDamager();
+        if (damager.equals(victim)) {
+            return;
         }
-
-        @Override
-        public void run() {
-            if (!player.isOnline()) {
-                removeTask(player.getUniqueId());
-                cancel();
-                return;
-            }
-            if (!player.isSprinting()) {
-                return;
-            }
-            if (ThreadLocalRandom.current().nextDouble() >= chance) {
-                return;
-            }
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!player.isOnline() || player.isDead()) {
-                    return;
-                }
-                player.damage(damage, player);
-            });
+        final double chance = Math.min(1.0D, level * chanceRate);
+        if (ThreadLocalRandom.current().nextDouble() >= chance) {
+            return;
+        }
+        // Deal extra damage to self
+        final double extraDamage = event.getDelegate().getDamage() * (level * damageRate);
+        if (extraDamage > 0D) {
+            // Apply additional damage
+            event.getDelegate().setDamage(event.getDelegate().getDamage() + extraDamage);
         }
     }
 }

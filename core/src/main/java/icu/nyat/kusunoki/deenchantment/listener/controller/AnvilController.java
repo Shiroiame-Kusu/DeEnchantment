@@ -3,7 +3,6 @@ package icu.nyat.kusunoki.deenchantment.listener.controller;
 import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.config.MessageConfig;
 import icu.nyat.kusunoki.deenchantment.config.PluginConfig;
-import icu.nyat.kusunoki.deenchantment.curse.RegisteredCurse;
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import icu.nyat.kusunoki.deenchantment.util.text.PlaceholderText;
 import org.bukkit.GameMode;
@@ -18,11 +17,9 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.Repairable;
-import org.bukkit.persistence.PersistentDataContainer;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -92,11 +89,11 @@ public final class AnvilController implements Listener {
             if (resultMeta == null) {
                 return;
             }
-            baseMeta.getEnchants().forEach((enchantment, level) -> {
-                if (enchantment instanceof RegisteredCurse) {
-                    resultMeta.addEnchant(enchantment, level, true);
-                }
-            });
+            // Copy curses from base item's PDC to result item's PDC
+            final Map<String, Integer> baseCurses = enchantTools.getCursesFromPdc(baseMeta);
+            if (!baseCurses.isEmpty()) {
+                enchantTools.copyCursesToPdc(resultMeta, baseCurses);
+            }
             enchantTools.updateLore(resultMeta);
             currentResult.setItemMeta(resultMeta);
             event.setResult(currentResult);
@@ -130,6 +127,7 @@ public final class AnvilController implements Listener {
             if (meta != null) {
                 removals.forEach(meta::removeEnchant);
                 final ItemStack finalOutput = output;
+                // Copy vanilla enchantments
                 combined.getEnchantments().forEach((enchantment, level) -> {
                     if (meta instanceof EnchantmentStorageMeta storage) {
                         storage.addStoredEnchant(enchantment, level, true);
@@ -139,6 +137,14 @@ public final class AnvilController implements Listener {
                         finalOutput.setItemMeta(meta);
                     }
                 });
+                // Copy curses from PDC
+                final ItemMeta combinedMeta = combined.getItemMeta();
+                if (combinedMeta != null) {
+                    final Map<String, Integer> curses = enchantTools.getCursesFromPdc(combinedMeta);
+                    if (!curses.isEmpty()) {
+                        enchantTools.copyCursesToPdc(meta, curses);
+                    }
+                }
                 enchantTools.updateLore(meta);
                 if (displayName != null && !displayName.isEmpty()) {
                     meta.setDisplayName(displayName);

@@ -7,13 +7,15 @@ import java.util.Arrays;
 
 /**
  * Fired when the periodic equipment scanner detects a change in a player's armor slots.
+ * This event runs on the main server thread (sync) because the EquipmentScanner
+ * uses Bukkit's synchronous scheduler.
  */
 public final class DePlayerEquipmentChangeEvent extends DeEnchantmentEvent {
 
     private ItemStack[] armors;
 
     public DePlayerEquipmentChangeEvent(final Player player, final ItemStack[] armors) {
-        super(player, true);
+        super(player, false);  // Must be false - EquipmentScanner runs synchronously
         this.armors = cloneContents(armors);
     }
 

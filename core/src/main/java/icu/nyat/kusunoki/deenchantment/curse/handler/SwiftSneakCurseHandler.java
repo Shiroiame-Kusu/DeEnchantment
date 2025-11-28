@@ -6,6 +6,7 @@ import icu.nyat.kusunoki.deenchantment.listener.event.DePlayerEquipmentChangeEve
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -78,6 +79,13 @@ public final class SwiftSneakCurseHandler extends AbstractCurseHandler {
                 cancelTask(resistanceTasks.remove(playerId));
             }
         }
+    }
+
+    @EventHandler
+    public void onQuit(final PlayerQuitEvent event) {
+        final UUID playerId = event.getPlayer().getUniqueId();
+        cancelTask(slowTasks.remove(playerId));
+        cancelTask(resistanceTasks.remove(playerId));
     }
 
     private PotionTask schedulePotionTask(final PotionTask existing,

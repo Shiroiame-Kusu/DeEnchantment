@@ -1,0 +1,177 @@
+# DeEnchantment English Language File
+# Language file for English (US)
+
+curses:
+  de_protection:
+    name: "§7Unprotection"
+    description: "§8 - Increases damage taken"
+  de_fire_protection:
+    name: "§7Flammable"
+    description: "§8 - Chance to catch fire when attacked"
+  de_blast_protection:
+    name: "§7Instant Explosion"
+    description: "§8 - Chance to explode when damaged"
+  de_projectile_protection:
+    name: "§7Projectile Magnet"
+    description: "§8 - Attracts nearby projectiles"
+  de_feather_falling:
+    name: "§7Bone Breaker"
+    description: "§8 - Increases fall damage"
+  de_respiration:
+    name: "§7Suffocation"
+    description: "§8 - Oxygen depletes faster underwater"
+  de_aqua_affinity:
+    name: "§7Aqua Inefficiency"
+    description: "§8 - Chance to fail mining underwater"
+  de_thorns:
+    name: "§7Self Harm"
+    description: "§8 - Chance to hurt yourself while sprinting"
+  de_depth_strider:
+    name: "§7Landlubber"
+    description: "§8 - Reduced vision underwater"
+  de_frost_walker:
+    name: "§7Lava Walker"
+    description: "§8 - Walk on lava"
+  de_binding_curse:
+    name: "§aSoul Binding"
+    description: "§8 - Binds to player's soul, only they can use it"
+  de_sharpness:
+    name: "§7Dullness"
+    description: "§8 - Reduces attack damage"
+  de_smite:
+    name: "§7Undead Friend"
+    description: "§8 - Reduces damage to undead mobs"
+  de_bane_of_arthropods:
+    name: "§7Arthropod Friend"
+    description: "§8 - Reduces damage to arthropods"
+  de_knockback:
+    name: "§7Recoil"
+    description: "§8 - Knock yourself back when attacking"
+  de_fire_aspect:
+    name: "§7Self Ignition"
+    description: "§8 - Chance to burn yourself when attacking"
+  de_looting:
+    name: "§7Content"
+    description: "§8 - Chance for no drops from killed mobs"
+  de_sweeping:
+    name: "§7Gravity Blade"
+    description: "§8 - Pull nearby enemies towards you"
+  de_efficiency:
+    name: "§7Inefficiency"
+    description: "§8 - Chance to fail mining"
+  de_silk_touch:
+    name: "§7Complete Destruction"
+    description: "§8 - Blocks drop nothing when mined"
+  de_unbreaking:
+    name: "§7Fragile"
+    description: "§8 - Increases durability loss"
+  de_fortune:
+    name: "§7Misfortune"
+    description: "§8 - Chance for drops to disappear"
+  de_power:
+    name: "§7Weakness"
+    description: "§8 - Reduces arrow damage and speed"
+  de_punch:
+    name: "§7Pull"
+    description: "§8 - Pull targets towards you"
+  de_flame:
+    name: "§7Swift Arrow"
+    description: "§8 - Increases arrow speed"
+  de_infinity:
+    name: "§7Multishot"
+    description: "§8 - Consumes one arrow to shoot multiple"
+  de_luck_of_the_sea:
+    name: "§7Sea's Rejection"
+    description: "§8 - Chance for caught items to slip away"
+  de_lure:
+    name: "§7Expired Bait"
+    description: "§8 - Increases time for fish to bite"
+  de_loyalty:
+    name: "§7Betrayal"
+    description: "§8 - Trident may defect to others"
+  de_impaling:
+    name: "§7Impaling"
+    description: "§8 - Increases damage to non-aquatic mobs"
+  de_riptide:
+    name: "§7Flame Stream"
+    description: "§8 - Move rapidly when on fire"
+  de_channeling:
+    name: "§7Lightning Rod"
+    description: "§8 - Get struck by lightning in thunderstorms"
+  de_multishot:
+    name: "§7Rapid Fire"
+    description: "§8 - Fire multiple arrows in succession"
+  de_quick_charge:
+    name: "§7Slow Load"
+    description: "§8 - Loading is frequently interrupted"
+  de_piercing:
+    name: "§7Rebound"
+    description: "§8 - Arrows bounce back to shooter"
+  de_mending:
+    name: "§7Experience Drain"
+    description: "§8 - Trade extra durability for experience"
+  de_vanishing_curse:
+    name: "§aEternal Blessing"
+    description: "§8 - Will not disappear and follows owner"
+  de_soul_speed:
+    name: "§7Earth Sprint"
+    description: "§8 - Sprint rapidly on specific blocks"
+  de_swift_sneak:
+    name: "§7Heavy Steps"
+    description: "§8 - Move slowly but gain resistance"
+
+# Curse-specific messages
+curse-messages:
+  de_binding_curse:
+    bind-message: "&aYour equipment has been bound to your soul"
+    owner-message: "&cYou cannot use equipment bound to another's soul!"
+    place-holder: "Player"
+  de_luck_of_the_sea:
+    message: "&6The sea rejected you and took back your catch"
+  de_loyalty:
+    message: "&cYour weapon has betrayed you! &6Now belongs to &a{player} &6at &a{location}"
+
+# General messages
+prefix: "&3DeEnchantment &8» "
+commands:
+  help-header: "&bAvailable commands:"
+  help-entry: "&7/deenchantment {0} &f- {1}"
+  unknown: "&cUnknown sub-command: {0}"
+  no-permission: "&cYou do not have permission to use this sub-command."
+  players-only: "&cOnly players may use this sub-command."
+  reload-success: "&aReloaded configuration files."
+  reload-failure: "&cReload failed; see console for details."
+  not-implemented: "&eThis sub-command is not implemented yet."
+  give-usage: "&cUsage: /deenchantment give <player> <curse> [level]"
+  give-player-missing: "&cPlayer {0} is not online."
+  give-curse-missing: "&cUnknown or disabled curse: {0}"
+  give-level-invalid: "&cLevel must be a positive number."
+  give-success: "&aGave {0} a {1} &7(Level {2})"
+  random-usage: "&cUsage: /deenchantment random <book|enchant> <player> [level]"
+  random-type-invalid: "&cUnsupported type. Use book or enchant."
+  random-player-missing: "&cPlayer {0} is not online."
+  random-none: "&cThere are no available curses for this action."
+  random-hand-empty: "&c{0} must hold an item to receive random curses."
+  random-level-invalid: "&cLevel must be a positive number."
+  random-book-success: "&aGave {0} a random curse book: {1} Level {2}."
+  random-enchant-success: "&aAdded {0} Level {1} to {2}'s held item."
+  add-usage: "&cUsage: /deenchantment add <curse> [level]"
+  add-curse-missing: "&cUnknown or disabled curse: {0}"
+  add-level-invalid: "&cLevel must be a positive number."
+  add-hand-empty: "&cYou must hold an item to add curses."
+  add-success: "&aAdded {0} Level {1} to your held item."
+  update-player-missing: "&cPlayer {0} is not online."
+  update-hand-empty: "&c{0} is not holding an item."
+  update-no-meta: "&cThat item cannot hold lore."
+  update-success: "&aUpdated curse lore for {0}."
+  purification-usage: "&cUsage: /deenchantment purification <player>"
+  purification-player-missing: "&cPlayer {0} is not online."
+  purification-hand-empty: "&c{0} is not holding an item."
+  purification-no-meta: "&cThat item cannot hold enchantments."
+  purification-none: "&eNo curses were found on that item."
+  purification-success: "&aConverted curses on {0}'s held item."
+  migrate-missing: "&cPlace old_config.yml in the plugin folder before running this command."
+  migrate-success: "&aLegacy configuration migrated successfully."
+controllers:
+  anvil-cost: "&aThis enchantment will cost &6{0} &aexperience levels."
+  enchant-modified: "&6Your enchantment feels different..."

@@ -1,0 +1,177 @@
+# DeEnchantment 简体中文语言文件
+# Language file for Simplified Chinese
+
+curses:
+  de_protection:
+    name: "§7保护不了"
+    description: "§8 - 增加受到的伤害"
+  de_fire_protection:
+    name: "§7易燃"
+    description: "§8 - 受到攻击时有概率着火"
+  de_blast_protection:
+    name: "§7瞬间爆炸"
+    description: "§8 - 受到伤害时有概率爆炸"
+  de_projectile_protection:
+    name: "§7弹射物吸引"
+    description: "§8 - 吸引附近的弹射物"
+  de_feather_falling:
+    name: "§7摔落骨折"
+    description: "§8 - 增加受到的摔落伤害"
+  de_respiration:
+    name: "§7水下窒息"
+    description: "§8 - 消耗氧气的速度增加"
+  de_aqua_affinity:
+    name: "§7水下慢掘"
+    description: "§8 - 水下挖掘有概率失败"
+  de_thorns:
+    name: "§7负荆请罪"
+    description: "§8 - 疾跑时有概率受伤"
+  de_depth_strider:
+    name: "§7旱鸭子"
+    description: "§8 - 水下视野减少"
+  de_frost_walker:
+    name: "§7熔岩行者"
+    description: "§8 - 在岩浆上行走"
+  de_binding_curse:
+    name: "§a灵魂绑定"
+    description: "§8 - 绑定玩家的灵魂仅允许使用"
+  de_sharpness:
+    name: "§7磨钝"
+    description: "§8 - 攻击伤害减少"
+  de_smite:
+    name: "§7亡灵之友"
+    description: "§8 - 对亡灵生物伤害减少"
+  de_bane_of_arthropods:
+    name: "§7截肢之友"
+    description: "§8 - 对截肢生物伤害减少"
+  de_knockback:
+    name: "§7退击"
+    description: "§8 - 攻击时后跳一段距离"
+  de_fire_aspect:
+    name: "§7引火烧身"
+    description: "§8 - 攻击时有概率烧伤自己"
+  de_looting:
+    name: "§7知足"
+    description: "§8 - 击杀生物有概率没有掉落物"
+  de_sweeping:
+    name: "§7牵引之刃"
+    description: "§8 - 将范围内的敌人吸引过来"
+  de_efficiency:
+    name: "§7低效"
+    description: "§8 - 有概率挖掘失败"
+  de_silk_touch:
+    name: "§7彻底粉碎"
+    description: "§8 - 挖掘方块不会有掉落物"
+  de_unbreaking:
+    name: "§7易损"
+    description: "§8 - 增加耐久消耗"
+  de_fortune:
+    name: "§7霉运"
+    description: "§8 - 挖掘方块掉落物有概率消失"
+  de_power:
+    name: "§7虚弱"
+    description: "§8 - 箭矢伤害和速度减少"
+  de_punch:
+    name: "§7拉扯"
+    description: "§8 - 将目标拉扯过来"
+  de_flame:
+    name: "§7神速"
+    description: "§8 - 箭矢速度增加"
+  de_infinity:
+    name: "§7多重"
+    description: "§8 - 消耗一根箭射出多支箭"
+  de_luck_of_the_sea:
+    name: "§7海之嫌弃"
+    description: "§8 - 钓到的东西有概率脱钩"
+  de_lure:
+    name: "§7过期钓饵"
+    description: "§8 - 增加鱼上钩的时间"
+  de_loyalty:
+    name: "§7背叛"
+    description: "§8 - 三叉戟有概率叛逃他人"
+  de_impaling:
+    name: "§7刺穿"
+    description: "§8 - 增加对非水生生物的伤害"
+  de_riptide:
+    name: "§7焰流"
+    description: "§8 - 在燃烧时快速移动"
+  de_channeling:
+    name: "§7引雷针"
+    description: "§8 - 在雷雨天时会遭天谴"
+  de_multishot:
+    name: "§7连珠"
+    description: "§8 - 连续射出多支箭"
+  de_quick_charge:
+    name: "§7慢速装填"
+    description: "§8 - 装填过程被频繁打断"
+  de_piercing:
+    name: "§7反弹"
+    description: "§8 - 击中后会反弹回射手"
+  de_mending:
+    name: "§7经验反哺"
+    description: "§8 - 以额外耐久消耗换取经验"
+  de_vanishing_curse:
+    name: "§a永存祝福"
+    description: "§8 - 不会消失并追随原主人"
+  de_soul_speed:
+    name: "§7大地疾行"
+    description: "§8 - 在特定方块上极速奔跑"
+  de_swift_sneak:
+    name: "§7沉重步伐"
+    description: "§8 - 行走迟缓但更为坚韧"
+
+# Curse-specific messages
+curse-messages:
+  de_binding_curse:
+    bind-message: "&a您的装备已绑定您的灵魂"
+    owner-message: "&c你不能使用绑定了别人灵魂的装备!"
+    place-holder: "玩家"
+  de_luck_of_the_sea:
+    message: "&6你受到了大海的嫌弃并回收了你的东西"
+  de_loyalty:
+    message: "&c您的武器已背叛！&6现在属于 &a{player} &6位于 &a{location}"
+
+# General messages
+prefix: "&3DeEnchantment &8» "
+commands:
+  help-header: "&b可用命令:"
+  help-entry: "&7/deenchantment {0} &f- {1}"
+  unknown: "&c未知子命令: {0}"
+  no-permission: "&c你没有权限使用此子命令。"
+  players-only: "&c只有玩家可以使用此子命令。"
+  reload-success: "&a已重新加载配置文件。"
+  reload-failure: "&c重载失败，请查看控制台了解详情。"
+  not-implemented: "&e此子命令尚未实现。"
+  give-usage: "&c用法: /deenchantment give <玩家> <诅咒> [等级]"
+  give-player-missing: "&c玩家 {0} 不在线。"
+  give-curse-missing: "&c未知或已禁用的诅咒: {0}"
+  give-level-invalid: "&c等级必须是正数。"
+  give-success: "&a已给予 {0} 一个 {1} &7(等级 {2})"
+  random-usage: "&c用法: /deenchantment random <book|enchant> <玩家> [等级]"
+  random-type-invalid: "&c不支持的类型。请使用 book 或 enchant。"
+  random-player-missing: "&c玩家 {0} 不在线。"
+  random-none: "&c没有可用的诅咒。"
+  random-hand-empty: "&c{0} 必须手持物品才能接收随机诅咒。"
+  random-level-invalid: "&c等级必须是正数。"
+  random-book-success: "&a已给予 {0} 一本随机诅咒书: {1} 等级 {2}。"
+  random-enchant-success: "&a已为 {0} 手持物品添加 {1} 等级 {2}。"
+  add-usage: "&c用法: /deenchantment add <诅咒> [等级]"
+  add-curse-missing: "&c未知或已禁用的诅咒: {0}"
+  add-level-invalid: "&c等级必须是正数。"
+  add-hand-empty: "&c你必须手持物品才能添加诅咒。"
+  add-success: "&a已为你手持的物品添加 {0} 等级 {1}。"
+  update-player-missing: "&c玩家 {0} 不在线。"
+  update-hand-empty: "&c{0} 没有手持物品。"
+  update-no-meta: "&c该物品无法添加描述。"
+  update-success: "&a已更新 {0} 的诅咒描述。"
+  purification-usage: "&c用法: /deenchantment purification <玩家>"
+  purification-player-missing: "&c玩家 {0} 不在线。"
+  purification-hand-empty: "&c{0} 没有手持物品。"
+  purification-no-meta: "&c该物品无法添加附魔。"
+  purification-none: "&e该物品上没有诅咒。"
+  purification-success: "&a已转换 {0} 手持物品上的诅咒。"
+  migrate-missing: "&c请在插件文件夹中放置 old_config.yml 后再运行此命令。"
+  migrate-success: "&a旧版配置已成功迁移。"
+controllers:
+  anvil-cost: "&a此附魔将花费 &6{0} &a经验等级。"
+  enchant-modified: "&6你的附魔有些不同..."

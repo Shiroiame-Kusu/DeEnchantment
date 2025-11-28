@@ -28,7 +28,7 @@ dependencies {
 
 extra["nmsPackage"] = "v1_21_6"
 extra["versionLabel"] = "1.21.6"
-extra["versionPrefix"] = "1.21.6"
+extra["versionPrefixes"] = "1.21.6"
 extra["factoryPriority"] = "12106"
 
 apply(from = rootProject.file("gradle/nms-modern-module.gradle.kts"))

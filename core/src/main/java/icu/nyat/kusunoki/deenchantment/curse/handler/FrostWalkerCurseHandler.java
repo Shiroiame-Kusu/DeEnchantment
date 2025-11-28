@@ -16,6 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -104,6 +105,11 @@ public final class FrostWalkerCurseHandler extends AbstractCurseHandler {
         }
         event.setCancelled(true);
         revert(block);
+    }
+
+    @EventHandler
+    public void onQuit(final PlayerQuitEvent event) {
+        trackedLevels.remove(event.getPlayer().getUniqueId());
     }
 
     private boolean shouldAffect(final Player player) {

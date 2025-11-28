@@ -1,16 +1,15 @@
-package icu.nyat.kusunoki.deenchantment.nms.@NMS_PACKAGE@;
+package icu.nyat.kusunoki.deenchantment.nms.v1_20_5;
 
 import icu.nyat.kusunoki.deenchantment.nms.NmsBridge;
 import icu.nyat.kusunoki.deenchantment.nms.NmsBridgeFactory;
 import org.bukkit.Bukkit;
 
 /**
- * Provides the streamlined bridge for the @MINECRAFT_VERSION_LABEL@ server line.
+ * Provides the streamlined bridge for the 1.20.5-1.20.6 server line.
  */
 public final class ModernNmsBridgeFactory implements NmsBridgeFactory {
 
-    private static final int PRIORITY = @FACTORY_PRIORITY@;
-    private static final String[] SUPPORTED_PREFIXES = { @MINECRAFT_VERSION_PREFIXES@ };
+    private static final int PRIORITY = 12005;
 
     @Override
     public boolean isCompatible() {
@@ -18,12 +17,8 @@ public final class ModernNmsBridgeFactory implements NmsBridgeFactory {
         if (minecraftVersion == null) {
             return false;
         }
-        for (final String prefix : SUPPORTED_PREFIXES) {
-            if (minecraftVersion.startsWith(prefix)) {
-                return true;
-            }
-        }
-        return false;
+        // Match 1.20.5 and 1.20.6 specifically
+        return minecraftVersion.startsWith("1.20.5") || minecraftVersion.startsWith("1.20.6");
     }
 
     @Override
@@ -33,7 +28,7 @@ public final class ModernNmsBridgeFactory implements NmsBridgeFactory {
 
     @Override
     public String describe() {
-        return "Modern Bukkit enchantment bridge (@MINECRAFT_VERSION_LABEL@)";
+        return "Modern Bukkit enchantment bridge (1.20.5-1.20.6)";
     }
 
     @Override

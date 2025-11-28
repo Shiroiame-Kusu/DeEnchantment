@@ -13,6 +13,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -21,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RespirationCurseHandler extends AbstractCurseHandler {
 
     private final double speedRate;
-    private final Map<Player, Integer> trackedLevels = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> trackedLevels = new ConcurrentHashMap<>();
 
     public RespirationCurseHandler(final JavaPlugin plugin,
                                     final ConfigService configService,
@@ -35,11 +36,12 @@ public final class RespirationCurseHandler extends AbstractCurseHandler {
     public void onEquipmentChange(final DePlayerEquipmentChangeEvent event) {
         final int level = getLevel(event);
         final Player player = event.getPlayer();
+        final UUID playerId = player.getUniqueId();
         if (level <= 0 || !hasPermission(player)) {
-            trackedLevels.remove(player);
+            trackedLevels.remove(playerId);
             return;
         }
-        trackedLevels.put(player, level);
+        trackedLevels.put(playerId, level);
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -50,7 +52,7 @@ public final class RespirationCurseHandler extends AbstractCurseHandler {
         if (!isAffected(player)) {
             return;
         }
-        final int level = trackedLevels.getOrDefault(player, 0);
+        final int level = trackedLevels.getOrDefault(player.getUniqueId(), 0);
         if (level <= 0) {
             return;
         }
@@ -63,7 +65,7 @@ public final class RespirationCurseHandler extends AbstractCurseHandler {
 
     @EventHandler
     public void onQuit(final PlayerQuitEvent event) {
-        trackedLevels.remove(event.getPlayer());
+        trackedLevels.remove(event.getPlayer().getUniqueId());
     }
 
     private boolean isAffected(final Player player) {

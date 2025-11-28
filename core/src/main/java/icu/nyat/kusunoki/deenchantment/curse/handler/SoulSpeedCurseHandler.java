@@ -5,13 +5,13 @@ import icu.nyat.kusunoki.deenchantment.curse.RegisteredCurse;
 import icu.nyat.kusunoki.deenchantment.listener.event.DePlayerEquipmentChangeEvent;
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import org.bukkit.Material;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Collections;
@@ -19,30 +19,29 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Grants bursts of speed on configured block types.
+ * Applies slowness when walking on soul sand or soul soil (curse version of Soul Speed).
  */
 public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
 
-    private static final UUID MODIFIER_ID = UUID.fromString("1ff16a9b-3b50-4ed4-b9f6-9e83418e8c1f");
+    private static final int EFFECT_DURATION = 60;  // 3 seconds
 
-    private final double speedRate;
+    private final int slowLevelRate;
     private final long periodTicks;
-    private final Set<Material> boostBlocks;
-    private final Map<UUID, SpeedWatcher> watchers = new HashMap<>();
+    private final Set<Material> soulBlocks;
+    private final Map<UUID, SoulWatcher> watchers = new HashMap<>();
 
     public SoulSpeedCurseHandler(final JavaPlugin plugin,
                                  final ConfigService configService,
                                  final EnchantTools enchantTools,
                                  final RegisteredCurse curse) {
         super(plugin, configService, enchantTools, curse);
-        this.speedRate = Math.max(0D, configDouble(0.15D, "speed-rate", "speedRate"));
+        this.slowLevelRate = Math.max(1, configInt(1, "slow-level-rate", "slowLevelRate"));
         this.periodTicks = Math.max(1L, configInt(10, "period"));
-        this.boostBlocks = Collections.unmodifiableSet(resolveBlocks());
+        this.soulBlocks = Collections.unmodifiableSet(resolveSoulBlocks());
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -54,29 +53,27 @@ public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
             removeWatcher(player);
             return;
         }
-        final double amount = level * speedRate;
-        if (amount <= 0D) {
-            removeWatcher(player);
-            return;
-        }
-        final AttributeModifier modifier = new AttributeModifier(MODIFIER_ID, "De_Soul_Speed", amount,
-                AttributeModifier.Operation.ADD_SCALAR);
         watchers.compute(player.getUniqueId(), (uuid, watcher) -> {
             if (watcher == null) {
-                final SpeedWatcher created = new SpeedWatcher(player, modifier);
+                final SoulWatcher created = new SoulWatcher(player, level);
                 created.runTaskTimer(plugin, 0L, periodTicks);
                 return created;
             }
-            watcher.setModifier(modifier);
+            watcher.setLevel(level);
             return watcher;
         });
     }
 
-    private Set<Material> resolveBlocks() {
+    @EventHandler
+    public void onQuit(final PlayerQuitEvent event) {
+        removeWatcher(event.getPlayer());
+    }
+
+    private Set<Material> resolveSoulBlocks() {
         final ConfigurationSection section = configuration();
         final List<String> configured = section == null ? List.of() : section.getStringList("blocks");
         final List<String> sources = configured == null || configured.isEmpty()
-                ? List.of("DIRT", "GRASS_BLOCK")
+                ? List.of("SOUL_SAND", "SOUL_SOIL")
                 : configured;
         final Set<Material> materials = EnumSet.noneOf(Material.class);
         for (final String name : sources) {
@@ -89,8 +86,8 @@ public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
             }
         }
         if (materials.isEmpty()) {
-            materials.add(Material.DIRT);
-            materials.add(Material.GRASS_BLOCK);
+            materials.add(Material.SOUL_SAND);
+            materials.add(Material.SOUL_SOIL);
         }
         return materials;
     }
@@ -99,7 +96,7 @@ public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
         if (player == null) {
             return;
         }
-        final SpeedWatcher watcher = watchers.remove(player.getUniqueId());
+        final SoulWatcher watcher = watchers.remove(player.getUniqueId());
         if (watcher != null) {
             watcher.cancel();
         }
@@ -111,17 +108,18 @@ public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
         watchers.clear();
     }
 
-    private final class SpeedWatcher extends BukkitRunnable {
+    private final class SoulWatcher extends BukkitRunnable {
 
         private final Player player;
-        private final AttributeInstance attribute;
-        private AttributeModifier modifier;
-        private boolean applied;
+        private volatile int level;
 
-        private SpeedWatcher(final Player player, final AttributeModifier modifier) {
-            this.player = Objects.requireNonNull(player, "player");
-            this.modifier = Objects.requireNonNull(modifier, "modifier");
-            this.attribute = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
+        private SoulWatcher(final Player player, final int level) {
+            this.player = player;
+            this.level = level;
+        }
+
+        private void setLevel(final int level) {
+            this.level = level;
         }
 
         @Override
@@ -131,52 +129,21 @@ public final class SoulSpeedCurseHandler extends AbstractCurseHandler {
                 watchers.remove(player.getUniqueId());
                 return;
             }
-            if (attribute == null) {
-                cancel();
-                watchers.remove(player.getUniqueId());
+            // Check if standing on soul blocks
+            final Material blockBelow = player.getLocation().clone().subtract(0, 0.5, 0).getBlock().getType();
+            if (!soulBlocks.contains(blockBelow)) {
                 return;
             }
-            final Material blockType = player.getLocation().clone().add(0D, -0.5D, 0D).getBlock().getType();
-            if (blockType.isAir()) {
-                removeModifier();
-                applied = false;
-                return;
-            }
-            if (boostBlocks.contains(blockType)) {
-                if (applied) {
-                    return;
-                }
-                applied = true;
-                attribute.removeModifier(modifier);
-                attribute.addModifier(modifier);
-            } else if (applied) {
-                applied = false;
-                attribute.removeModifier(modifier);
-            }
-        }
-
-        private void removeModifier() {
-            if (attribute != null) {
-                attribute.removeModifier(modifier);
-            }
-        }
-
-        public void setModifier(final AttributeModifier modifier) {
-            if (attribute == null) {
-                this.modifier = modifier;
-                return;
-            }
-            attribute.removeModifier(this.modifier);
-            this.modifier = modifier;
-            if (applied) {
-                attribute.addModifier(modifier);
-            }
-        }
-
-        @Override
-        public void cancel() {
-            super.cancel();
-            removeModifier();
+            // Apply slowness
+            final int amplifier = Math.max(0, (level * slowLevelRate) - 1);
+            player.addPotionEffect(new PotionEffect(
+                    PotionEffectType.SLOW,
+                    EFFECT_DURATION,
+                    amplifier,
+                    true,
+                    false,
+                    true
+            ));
         }
     }
 }

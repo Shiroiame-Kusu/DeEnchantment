@@ -60,7 +60,8 @@ public abstract class AbstractCurseHandler implements Listener {
         if (stack == null) {
             return 0;
         }
-        return stack.getEnchantmentLevel(curse);
+        // Curses are stored in PDC to avoid Paper 1.20.6+ Handleable serialization issues
+        return enchantTools.getCurseLevel(stack, curse);
     }
 
     protected final int getLevel(final DeEnchantmentEvent event) {
@@ -79,7 +80,7 @@ public abstract class AbstractCurseHandler implements Listener {
     }
 
     protected final String configString(final String path, final String def) {
-        return configString(def, path);
+        return configString(def, new String[] { path });
     }
 
     protected final String configString(final String def, final String... paths) {
@@ -99,7 +100,7 @@ public abstract class AbstractCurseHandler implements Listener {
     }
 
     protected final boolean configBoolean(final String path, final boolean def) {
-        return configBoolean(def, path);
+        return configBoolean(def, new String[] { path });
     }
 
     protected final boolean configBoolean(final boolean def, final String... paths) {
@@ -119,7 +120,7 @@ public abstract class AbstractCurseHandler implements Listener {
     }
 
     protected final double configDouble(final String path, final double def) {
-        return configDouble(def, path);
+        return configDouble(def, new String[] { path });
     }
 
     protected final double configDouble(final double def, final String... paths) {
@@ -139,7 +140,7 @@ public abstract class AbstractCurseHandler implements Listener {
     }
 
     protected final int configInt(final String path, final int def) {
-        return configInt(def, path);
+        return configInt(def, new String[] { path });
     }
 
     protected final int configInt(final int def, final String... paths) {

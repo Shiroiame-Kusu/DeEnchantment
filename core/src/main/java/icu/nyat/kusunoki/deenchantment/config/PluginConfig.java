@@ -7,6 +7,9 @@ import org.bukkit.configuration.file.FileConfiguration;
  */
 public final class PluginConfig {
 
+    private static final String DEFAULT_LANGUAGE = "zh_CN";
+
+    private final String language;
     private final boolean enableAnvil;
     private final boolean enableGrindstone;
     private final boolean enableEnchanting;
@@ -24,6 +27,7 @@ public final class PluginConfig {
     private final boolean debugLogging;
 
     private PluginConfig(
+            final String language,
             final boolean enableAnvil,
             final boolean enableGrindstone,
             final boolean enableEnchanting,
@@ -40,6 +44,7 @@ public final class PluginConfig {
             final boolean requirePermissions,
             final boolean debugLogging
     ) {
+        this.language = language;
         this.enableAnvil = enableAnvil;
         this.enableGrindstone = enableGrindstone;
         this.enableEnchanting = enableEnchanting;
@@ -59,6 +64,7 @@ public final class PluginConfig {
 
     public static PluginConfig from(final FileConfiguration config) {
         return new PluginConfig(
+                config.getString("language", DEFAULT_LANGUAGE),
                 config.getBoolean("anvil", true),
                 config.getBoolean("grindstone", true),
                 config.getBoolean("enchant", true),
@@ -135,5 +141,9 @@ public final class PluginConfig {
 
     public boolean isDebugLogging() {
         return debugLogging;
+    }
+
+    public String language() {
+        return language;
     }
 }

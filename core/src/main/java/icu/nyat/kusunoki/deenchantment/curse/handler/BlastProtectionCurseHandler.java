@@ -26,8 +26,8 @@ public final class BlastProtectionCurseHandler extends AbstractCurseHandler {
                                         final EnchantTools enchantTools,
                                         final RegisteredCurse curse) {
         super(plugin, configService, enchantTools, curse);
-        this.chanceRate = configDouble(0.05D, "chance", "changce");
-        this.explosionRate = configDouble(0.2D, "explosion-rate", "explosionRate");
+        this.chanceRate = configDouble(0.1D, "chance", "changce");
+        this.explosionRate = configDouble(0.5D, "explosion-rate", "explosionRate");
         this.allowFire = configBoolean(false, "allow-fire", "allowFire");
         this.allowDestroy = configBoolean(false, "allow-destroy", "allowDestroy");
     }

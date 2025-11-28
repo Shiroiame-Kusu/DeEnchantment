@@ -28,6 +28,7 @@ val buildTimestamp: String = project.buildTimestamp()
 dependencies {
     implementation(project(":nms-api"))
     runtimeOnly(project(":nms-v1_20_R3"))
+    runtimeOnly(project(":nms-v1_20_5"))
     runtimeOnly(project(":nms-v1_21"))
     runtimeOnly(project(":nms-v1_21_3"))
     runtimeOnly(project(":nms-v1_21_4"))
@@ -73,9 +74,10 @@ tasks {
 
     val shadowJarTask = named<ShadowJar>("shadowJar") {
         archiveClassifier.set("")
-        mergeServiceFiles()
         archiveFileName.set("${pluginName}-${project.version}-${buildTimestamp}-${gitSha}.jar")
+        // archiveFileName.set("${pluginName}-${project.version}.jar")
         relocate("org.bstats", "icu.nyat.kusunoki.deenchantment.lib.bstats")
+        mergeServiceFiles()
     }
 
     val copyShadowJar by registering(Copy::class) {

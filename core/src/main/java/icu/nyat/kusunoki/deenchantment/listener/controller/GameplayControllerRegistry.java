@@ -3,6 +3,7 @@ package icu.nyat.kusunoki.deenchantment.listener.controller;
 import icu.nyat.kusunoki.deenchantment.config.ConfigService;
 import icu.nyat.kusunoki.deenchantment.config.PluginConfig;
 import icu.nyat.kusunoki.deenchantment.config.MessageConfig;
+import icu.nyat.kusunoki.deenchantment.curse.CurseRegistry;
 import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -21,14 +22,17 @@ public final class GameplayControllerRegistry {
     private final JavaPlugin plugin;
     private final ConfigService configService;
     private final EnchantTools enchantTools;
+    private final CurseRegistry curseRegistry;
     private final List<Listener> activeListeners = new ArrayList<>();
 
     public GameplayControllerRegistry(final JavaPlugin plugin,
                                       final ConfigService configService,
-                                      final EnchantTools enchantTools) {
+                                      final EnchantTools enchantTools,
+                                      final CurseRegistry curseRegistry) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.configService = Objects.requireNonNull(configService, "configService");
         this.enchantTools = Objects.requireNonNull(enchantTools, "enchantTools");
+        this.curseRegistry = Objects.requireNonNull(curseRegistry, "curseRegistry");
     }
 
     public void enable() {
@@ -58,7 +62,7 @@ public final class GameplayControllerRegistry {
             register(manager, new ChestLootController(enchantTools));
         }
         if (config.isEnableEnchanting()) {
-            register(manager, new EnchantController(plugin, enchantTools, messages));
+            register(manager, new EnchantController(plugin, enchantTools, messages, curseRegistry));
         }
         if (config.isEnableSpawn()) {
             register(manager, new EntitySpawnController(plugin, enchantTools));

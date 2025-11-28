@@ -36,7 +36,7 @@ import javax.annotation.Nullable;
 final class ModernNmsBridge implements NmsBridge {
 
     private final CraftServer craftServer = (CraftServer) Bukkit.getServer();
-    private final MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> nmsRegistry;
+    private final Registry<net.minecraft.world.item.enchantment.Enchantment> nmsRegistry;
     private final org.bukkit.Registry<Enchantment> bukkitRegistry;
     private final Map<NamespacedKey, Enchantment> registered = new ConcurrentHashMap<>();
     private final Field frozenField;
@@ -52,9 +52,11 @@ final class ModernNmsBridge implements NmsBridge {
         this.nmsRegistry = lookupRegistry();
         this.bukkitRegistry = lookupBukkitRegistry();
         try {
-            this.frozenField = locateFrozenField();
-            this.allTagsField = locateAllTagsField();
-            this.unregisteredIntrusiveHoldersField = locateUnregisteredField();
+            // Get the actual MappedRegistry class - might be wrapped
+            final Class<?> registryClass = findMappedRegistryClass(nmsRegistry);
+            this.frozenField = locateFrozenField(registryClass);
+            this.allTagsField = locateAllTagsField(registryClass);
+            this.unregisteredIntrusiveHoldersField = locateUnregisteredField(registryClass);
             this.minecraftToBukkitField = locateField(CraftRegistry.class, "minecraftToBukkit");
             this.cacheField = locateField(CraftRegistry.class, "cache");
             this.originalMapper = minecraftToBukkitField.get(bukkitRegistry);
@@ -81,14 +83,14 @@ final class ModernNmsBridge implements NmsBridge {
         registered.put(key, enchantment);
 
         final ResourceLocation minecraftKey = CraftNamespacedKey.toMinecraft(key);
-        if (nmsRegistry.containsKey(minecraftKey)) {
+        if (registryContainsKey(minecraftKey)) {
             return true;
         }
 
         try {
             final net.minecraft.world.item.enchantment.Enchantment vanillaLike = createVanillaLikeEnchantment(enchantment);
-            nmsRegistry.createIntrusiveHolder(vanillaLike);
-            Registry.register(nmsRegistry, minecraftKey, vanillaLike);
+            invokeCreateIntrusiveHolder(vanillaLike);
+            registryRegister(minecraftKey, vanillaLike);
             return true;
         } catch (final Throwable error) {
             Bukkit.getLogger().log(Level.WARNING, "Failed to register enchantment " + key + " via modern bridge", error);
@@ -99,7 +101,7 @@ final class ModernNmsBridge implements NmsBridge {
 
     @Override
     public void freezeRegistration() {
-        nmsRegistry.freeze();
+        invokeFreeze();
     }
 
     @Override
@@ -114,16 +116,103 @@ final class ModernNmsBridge implements NmsBridge {
     }
 
     @SuppressWarnings("unchecked")
-    private MappedRegistry<net.minecraft.world.item.enchantment.Enchantment> lookupRegistry() {
-        return (MappedRegistry<net.minecraft.world.item.enchantment.Enchantment>) craftServer.getServer()
+    private Registry<net.minecraft.world.item.enchantment.Enchantment> lookupRegistry() {
+        // In 1.21+, registryAccess().lookupOrThrow() returns a HolderLookup.RegistryLookup (MappedRegistry$1)
+        // which is NOT a Registry. We need to get the actual WritableRegistry.
+        final Object lookup = craftServer.getServer()
                 .registryAccess()
                 .lookupOrThrow(Registries.ENCHANTMENT);
+        
+        // Try to extract the actual registry from the lookup wrapper
+        return extractRegistry(lookup);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private Registry<net.minecraft.world.item.enchantment.Enchantment> extractRegistry(final Object lookup) {
+        // If it's already a Registry, return it
+        if (lookup instanceof Registry) {
+            return (Registry<net.minecraft.world.item.enchantment.Enchantment>) lookup;
+        }
+        
+        // The lookup is likely MappedRegistry$1 (an anonymous inner class)
+        // Try to find the outer MappedRegistry instance via reflection
+        try {
+            // Anonymous inner classes have a reference to their enclosing instance
+            // typically named "this$0"
+            for (final Field field : lookup.getClass().getDeclaredFields()) {
+                if (field.getName().startsWith("this$") || 
+                    Registry.class.isAssignableFrom(field.getType()) ||
+                    field.getType().getName().contains("MappedRegistry")) {
+                    field.setAccessible(true);
+                    final Object value = field.get(lookup);
+                    if (value instanceof Registry) {
+                        return (Registry<net.minecraft.world.item.enchantment.Enchantment>) value;
+                    }
+                }
+            }
+            
+            // If we couldn't find it via fields, try to get it from BuiltInRegistries
+            // or the server's registry access differently
+            final var registryAccess = craftServer.getServer().registryAccess();
+            for (final Method method : registryAccess.getClass().getMethods()) {
+                if (method.getName().equals("registry") || method.getName().equals("registryOrThrow")) {
+                    if (method.getParameterCount() == 1) {
+                        method.setAccessible(true);
+                        final Object result = method.invoke(registryAccess, Registries.ENCHANTMENT);
+                        if (result instanceof Registry) {
+                            return (Registry<net.minecraft.world.item.enchantment.Enchantment>) result;
+                        }
+                        // Might be Optional<Registry>
+                        if (result instanceof java.util.Optional<?> optional && optional.isPresent()) {
+                            final Object inner = optional.get();
+                            if (inner instanceof Registry) {
+                                return (Registry<net.minecraft.world.item.enchantment.Enchantment>) inner;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to extract registry from lookup: " + lookup.getClass().getName(), e);
+        }
+        
+        throw new IllegalStateException("Unable to find Registry from lookup object: " + lookup.getClass().getName() + 
+            " (implements: " + java.util.Arrays.toString(lookup.getClass().getInterfaces()) + ")");
+    }
+    
+    /**
+     * Finds the actual MappedRegistry class, handling wrapper/anonymous classes.
+     */
+    private static Class<?> findMappedRegistryClass(final Object registry) {
+        Class<?> clazz = registry.getClass();
+        // Walk up the hierarchy to find MappedRegistry
+        while (clazz != null && clazz != Object.class) {
+            if (clazz.getName().equals("net.minecraft.core.MappedRegistry")) {
+                return clazz;
+            }
+            // Check if it's an anonymous inner class of MappedRegistry
+            if (clazz.getEnclosingClass() != null && 
+                clazz.getEnclosingClass().getName().equals("net.minecraft.core.MappedRegistry")) {
+                return clazz.getEnclosingClass();
+            }
+            clazz = clazz.getSuperclass();
+        }
+        // Fallback to the actual class
+        return registry.getClass();
     }
 
     @SuppressWarnings("unchecked")
     private org.bukkit.Registry<Enchantment> lookupBukkitRegistry() {
-        final DelayedRegistry<Enchantment, ?> delayed = (DelayedRegistry<Enchantment, ?>) org.bukkit.Registry.ENCHANTMENT;
-        return delayed.delegate();
+        final org.bukkit.Registry<Enchantment> registry = org.bukkit.Registry.ENCHANTMENT;
+        
+        // In newer Paper versions, it might be WritableCraftRegistry directly
+        // In older versions, it's wrapped in DelayedRegistry
+        if (registry instanceof DelayedRegistry<Enchantment, ?> delayed) {
+            return delayed.delegate();
+        }
+        
+        // For WritableCraftRegistry or CraftRegistry, return directly
+        return registry;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -158,21 +247,45 @@ final class ModernNmsBridge implements NmsBridge {
 
     private void unfreezeRegistry() {
         try {
-            frozenField.setBoolean(nmsRegistry, false);
-            unregisteredIntrusiveHoldersField.set(
-                nmsRegistry,
-                new IdentityHashMap<net.minecraft.world.item.enchantment.Enchantment, Reference<net.minecraft.world.item.enchantment.Enchantment>>()
-            );
-            allTagsField.set(nmsRegistry, createUnboundTagSet());
+            if (frozenField != null) {
+                frozenField.setBoolean(nmsRegistry, false);
+            }
+            if (unregisteredIntrusiveHoldersField != null) {
+                unregisteredIntrusiveHoldersField.set(
+                    nmsRegistry,
+                    new IdentityHashMap<net.minecraft.world.item.enchantment.Enchantment, Reference<net.minecraft.world.item.enchantment.Enchantment>>()
+                );
+            }
+            if (allTagsField != null) {
+                final Object tagSet = createUnboundTagSet(nmsRegistry.getClass());
+                if (tagSet != null) {
+                    allTagsField.set(nmsRegistry, tagSet);
+                }
+            }
         } catch (final IllegalAccessException exception) {
             throw new IllegalStateException("Unable to unfreeze enchantment registry", exception);
         }
     }
 
-    private Object createUnboundTagSet() {
-        final Class<?>[] innerClasses = MappedRegistry.class.getDeclaredClasses();
+    private Object createUnboundTagSet(final Class<?> registryClass) {
+        // Find the actual MappedRegistry class for inner classes
+        Class<?> mappedRegistryClass = registryClass;
+        while (mappedRegistryClass != null && !mappedRegistryClass.getName().equals("net.minecraft.core.MappedRegistry")) {
+            if (mappedRegistryClass.getEnclosingClass() != null &&
+                mappedRegistryClass.getEnclosingClass().getName().equals("net.minecraft.core.MappedRegistry")) {
+                mappedRegistryClass = mappedRegistryClass.getEnclosingClass();
+                break;
+            }
+            mappedRegistryClass = mappedRegistryClass.getSuperclass();
+        }
+        if (mappedRegistryClass == null) {
+            mappedRegistryClass = MappedRegistry.class;
+        }
+        
+        final Class<?>[] innerClasses = mappedRegistryClass.getDeclaredClasses();
         if (innerClasses.length == 0) {
-            throw new IllegalStateException("Unable to locate MappedRegistry tag helpers");
+            // No inner classes found - return null to skip tag set update
+            return null;
         }
         final Class<?> helper = innerClasses[0];
         for (final Method method : helper.getDeclaredMethods()) {
@@ -246,34 +359,287 @@ final class ModernNmsBridge implements NmsBridge {
         }
     }
 
-    private static Field locateFrozenField() {
-        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
-            if (field.getType().isPrimitive()) {
-                field.setAccessible(true);
-                return field;
+    /**
+     * Invokes createIntrusiveHolder via reflection to handle wrapper registry classes.
+     */
+    private void invokeCreateIntrusiveHolder(final net.minecraft.world.item.enchantment.Enchantment enchantment) {
+        try {
+            Method method = null;
+            Class<?> clazz = nmsRegistry.getClass();
+            while (clazz != null && clazz != Object.class) {
+                for (final Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals("createIntrusiveHolder") && m.getParameterCount() == 1) {
+                        method = m;
+                        break;
+                    }
+                }
+                if (method != null) break;
+                clazz = clazz.getSuperclass();
             }
+            if (method == null) {
+                throw new IllegalStateException("Unable to locate createIntrusiveHolder method");
+            }
+            method.setAccessible(true);
+            method.invoke(nmsRegistry, enchantment);
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to invoke createIntrusiveHolder", exception);
         }
-        throw new IllegalStateException("Unable to locate MappedRegistry#frozen field");
     }
 
-    private static Field locateAllTagsField() {
-        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
-            if (field.getType().getName().contains("TagSet")) {
-                field.setAccessible(true);
-                return field;
+    /**
+     * Invokes freeze via reflection to handle wrapper registry classes.
+     */
+    private void invokeFreeze() {
+        try {
+            Method method = null;
+            Class<?> clazz = nmsRegistry.getClass();
+            while (clazz != null && clazz != Object.class) {
+                for (final Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals("freeze") && m.getParameterCount() == 0) {
+                        method = m;
+                        break;
+                    }
+                }
+                if (method != null) break;
+                clazz = clazz.getSuperclass();
             }
+            if (method == null) {
+                throw new IllegalStateException("Unable to locate freeze method");
+            }
+            method.setAccessible(true);
+            method.invoke(nmsRegistry);
+        } catch (final ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to invoke freeze", exception);
         }
-        throw new IllegalStateException("Unable to locate MappedRegistry tag field");
     }
 
-    private static Field locateUnregisteredField() {
-        for (final Field field : MappedRegistry.class.getDeclaredFields()) {
-            if (field.getType() == Map.class && field.isAnnotationPresent(Nullable.class)) {
-                field.setAccessible(true);
-                return field;
+    /**
+     * Checks if the registry contains the given key via reflection.
+     */
+    private boolean registryContainsKey(final ResourceLocation key) {
+        try {
+            // Try containsKey method first
+            Method method = null;
+            Class<?> clazz = nmsRegistry.getClass();
+            while (clazz != null && clazz != Object.class) {
+                for (final Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals("containsKey") && m.getParameterCount() == 1) {
+                        method = m;
+                        break;
+                    }
+                }
+                if (method != null) break;
+                clazz = clazz.getSuperclass();
+            }
+            if (method != null) {
+                method.setAccessible(true);
+                return (Boolean) method.invoke(nmsRegistry, key);
+            }
+            
+            // Try get method and check for null
+            clazz = nmsRegistry.getClass();
+            while (clazz != null && clazz != Object.class) {
+                for (final Method m : clazz.getDeclaredMethods()) {
+                    if (m.getName().equals("get") && m.getParameterCount() == 1 && 
+                        m.getParameterTypes()[0].isAssignableFrom(ResourceLocation.class)) {
+                        method = m;
+                        break;
+                    }
+                }
+                if (method != null) break;
+                clazz = clazz.getSuperclass();
+            }
+            if (method != null) {
+                method.setAccessible(true);
+                return method.invoke(nmsRegistry, key) != null;
+            }
+            
+            // Assume it doesn't exist if we can't check
+            return false;
+        } catch (final ReflectiveOperationException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * Registers an enchantment in the registry via reflection.
+     */
+    private void registryRegister(final ResourceLocation key, final net.minecraft.world.item.enchantment.Enchantment value) {
+        // Try multiple approaches to register
+        Throwable lastError = null;
+        
+        // Create ResourceKey
+        Object resourceKey = null;
+        try {
+            final Class<?> resourceKeyClass = Class.forName("net.minecraft.resources.ResourceKey");
+            final Method createMethod = resourceKeyClass.getMethod("create", resourceKeyClass, ResourceLocation.class);
+            final Field enchantmentRegistryKey = Registries.class.getField("ENCHANTMENT");
+            final Object registryKey = enchantmentRegistryKey.get(null);
+            resourceKey = createMethod.invoke(null, registryKey, key);
+        } catch (final ReflectiveOperationException e) {
+            lastError = e;
+        }
+        
+        // Get RegistrationInfo.BUILT_IN for 1.20.5+ style registration
+        Object registrationInfo = null;
+        try {
+            final Class<?> registrationInfoClass = Class.forName("net.minecraft.core.RegistrationInfo");
+            final Field builtInField = registrationInfoClass.getField("BUILT_IN");
+            registrationInfo = builtInField.get(null);
+        } catch (final ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
+            // RegistrationInfo doesn't exist in older versions, that's fine
+        }
+        
+        // Approach 1: Try instance register method with 3 params (ResourceKey, Object, RegistrationInfo)
+        if (resourceKey != null && registrationInfo != null) {
+            try {
+                Method method = null;
+                Class<?> clazz = nmsRegistry.getClass();
+                while (clazz != null && clazz != Object.class) {
+                    for (final Method m : clazz.getDeclaredMethods()) {
+                        if (m.getName().equals("register") && m.getParameterCount() == 3) {
+                            method = m;
+                            break;
+                        }
+                    }
+                    if (method != null) break;
+                    clazz = clazz.getSuperclass();
+                }
+                if (method != null) {
+                    method.setAccessible(true);
+                    method.invoke(nmsRegistry, resourceKey, value, registrationInfo);
+                    return;
+                }
+            } catch (final ReflectiveOperationException e) {
+                lastError = e;
             }
         }
-        throw new IllegalStateException("Unable to locate MappedRegistry intrusive holder field");
+        
+        // Approach 2: Try instance register method with 2 params (ResourceKey, Object)
+        if (resourceKey != null) {
+            try {
+                Method method = null;
+                Class<?> clazz = nmsRegistry.getClass();
+                while (clazz != null && clazz != Object.class) {
+                    for (final Method m : clazz.getDeclaredMethods()) {
+                        if (m.getName().equals("register") && m.getParameterCount() == 2) {
+                            method = m;
+                            break;
+                        }
+                    }
+                    if (method != null) break;
+                    clazz = clazz.getSuperclass();
+                }
+                if (method != null) {
+                    method.setAccessible(true);
+                    method.invoke(nmsRegistry, resourceKey, value);
+                    return;
+                }
+            } catch (final ReflectiveOperationException e) {
+                lastError = e;
+            }
+        }
+        
+        // Approach 3: Try Registry.register static method with ResourceLocation
+        try {
+            final Method registerMethod = Registry.class.getMethod("register", Registry.class, ResourceLocation.class, Object.class);
+            registerMethod.invoke(null, nmsRegistry, key, value);
+            return;
+        } catch (final ReflectiveOperationException e) {
+            lastError = e;
+        }
+        
+        // Approach 4: Try Registry.register static method with ResourceKey
+        if (resourceKey != null) {
+            try {
+                final Class<?> resourceKeyClass = Class.forName("net.minecraft.resources.ResourceKey");
+                final Method registerMethod = Registry.class.getMethod("register", Registry.class, resourceKeyClass, Object.class);
+                registerMethod.invoke(null, nmsRegistry, resourceKey, value);
+                return;
+            } catch (final ReflectiveOperationException e) {
+                lastError = e;
+            }
+        }
+        
+        // Approach 5: Try Registry.register static method with String
+        try {
+            final Method registerMethod = Registry.class.getMethod("register", Registry.class, String.class, Object.class);
+            registerMethod.invoke(null, nmsRegistry, key.toString(), value);
+            return;
+        } catch (final ReflectiveOperationException e) {
+            lastError = e;
+        }
+        
+        throw new IllegalStateException("Unable to locate register method for registry type: " + nmsRegistry.getClass().getName(), lastError);
+    }
+
+    private static Field locateFrozenField(final Class<?> registryClass) {
+        // Search in the class and its superclasses
+        Class<?> clazz = registryClass;
+        while (clazz != null && clazz != Object.class) {
+            for (final Field field : clazz.getDeclaredFields()) {
+                if (field.getType() == boolean.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        throw new IllegalStateException("Unable to locate MappedRegistry#frozen field in " + registryClass.getName());
+    }
+
+    private static Field locateAllTagsField(final Class<?> registryClass) {
+        Class<?> clazz = registryClass;
+        while (clazz != null && clazz != Object.class) {
+            for (final Field field : clazz.getDeclaredFields()) {
+                final String typeName = field.getType().getName();
+                final String fieldName = field.getName();
+                // Look for TagSet, tags, or similar field names/types
+                if (typeName.contains("TagSet") || 
+                    typeName.contains("Tag") ||
+                    fieldName.contains("tag") ||
+                    fieldName.contains("Tag")) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        // If we can't find a tag field, return null - we'll handle it in unfreezeRegistry
+        return null;
+    }
+
+    private static Field locateUnregisteredField(final Class<?> registryClass) {
+        Class<?> clazz = registryClass;
+        while (clazz != null && clazz != Object.class) {
+            for (final Field field : clazz.getDeclaredFields()) {
+                // Look for Map fields that could be the intrusive holders
+                if (field.getType() == Map.class) {
+                    // Check for @Nullable or field name hints
+                    if (field.isAnnotationPresent(Nullable.class) ||
+                        field.getName().contains("unregistered") ||
+                        field.getName().contains("intrusive") ||
+                        field.getName().contains("Holder")) {
+                        field.setAccessible(true);
+                        return field;
+                    }
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        // Second pass: just find any Map field with @Nullable
+        clazz = registryClass;
+        while (clazz != null && clazz != Object.class) {
+            for (final Field field : clazz.getDeclaredFields()) {
+                if (field.getType() == Map.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        // Return null if not found - we'll handle it
+        return null;
     }
 
     private static Field locateField(final Class<?> owner, final String name) throws NoSuchFieldException {

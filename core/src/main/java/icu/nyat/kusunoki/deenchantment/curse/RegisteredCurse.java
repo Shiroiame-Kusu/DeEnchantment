@@ -113,12 +113,18 @@ public final class RegisteredCurse extends Enchantment {
         return definition.treasure() ? EnchantmentRarity.VERY_RARE : EnchantmentRarity.RARE;
     }
 
-    @Override
+    // No @Override here: the method only exists on Paper 1.21+, but defining it keeps runtime compatibility.
+    public int getWeight() {
+        // Weight corresponds to rarity: COMMON=10, UNCOMMON=5, RARE=2, VERY_RARE=1
+        return definition.treasure() ? 1 : 2;
+    }
+
+    // No @Override here: the method signature varies between versions.
     public int getMinModifiedCost(final int level) {
         return Math.max(1, level * 5);
     }
 
-    @Override
+    // No @Override here: the method signature varies between versions.
     public int getMaxModifiedCost(final int level) {
         return getMinModifiedCost(level) + 10;
     }
@@ -133,12 +139,12 @@ public final class RegisteredCurse extends Enchantment {
         return LegacyComponentSerializer.legacySection().deserialize(definition.displayName());
     }
 
-    @Override
+    // No @Override here: the method signature varies between versions.
     public String translationKey() {
         return "enchantment." + definition.id().key();
     }
 
-    @Override
+    // No @Override here: deprecated in some versions.
     public String getTranslationKey() {
         return translationKey();
     }

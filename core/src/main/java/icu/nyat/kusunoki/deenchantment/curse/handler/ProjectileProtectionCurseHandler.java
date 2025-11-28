@@ -13,9 +13,9 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -103,6 +103,11 @@ public final class ProjectileProtectionCurseHandler extends AbstractCurseHandler
             return;
         }
         stopTracking(event.getEntity(), true);
+    }
+
+    @EventHandler
+    public void onQuit(final PlayerQuitEvent event) {
+        cancelCollector(event.getPlayer().getUniqueId());
     }
 
     private void cancelCollector(final UUID playerId) {

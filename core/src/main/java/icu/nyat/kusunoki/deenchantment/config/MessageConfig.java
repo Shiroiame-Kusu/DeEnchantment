@@ -1,17 +1,15 @@
 package icu.nyat.kusunoki.deenchantment.config;
 
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.text.MessageFormat;
 import java.util.Objects;
 
 /**
- * Wrapper for {@code messages.yml} with Adventure-friendly serialization.
+ * Wrapper for language configuration messages with color code support.
+ * Messages are loaded from the active language file (e.g., lang/zh_CN.yml).
  */
 public final class MessageConfig {
-
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
 
     private final FileConfiguration config;
     private final String prefix;
@@ -55,6 +53,10 @@ public final class MessageConfig {
     }
 
     private String render(final String message) {
-        return LEGACY.serialize(LEGACY.deserialize(Objects.requireNonNullElse(message, "")));
+        if (message == null || message.isEmpty()) {
+            return "";
+        }
+        // Convert & color codes to § for Minecraft
+        return message.replace('&', '§');
     }
 }

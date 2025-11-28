@@ -1,6 +1,10 @@
 package icu.nyat.kusunoki.deenchantment.nms;
 
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.Map;
 
 /**
  * Abstraction layer over Bukkit/Paper's enchantment registration internals.
@@ -44,4 +48,40 @@ public interface NmsBridge {
      * possible.
      */
     boolean supportsHardReset();
+
+    /**
+     * Add enchantments to an item using NMS to bypass Bukkit's Handleable check.
+     * This is needed for Paper 1.20.6+ where custom enchantments must implement
+     * Handleable to be added via the Bukkit API.
+     *
+     * @param item The item to enchant
+     * @param enchantments Map of enchantments and their levels to add
+     * @param asStoredEnchants If true, add as stored enchants (for enchanted books)
+     * @return true if successful
+     */
+    default boolean addEnchantsNms(ItemStack item, Map<Enchantment, Integer> enchantments, boolean asStoredEnchants) {
+        // Default implementation uses Bukkit API - override in version-specific bridges
+        if (item == null || enchantments == null || enchantments.isEmpty()) {
+            return false;
+        }
+        final ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        try {
+            if (asStoredEnchants && meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta storage) {
+                for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
+                    storage.addStoredEnchant(entry.getKey(), entry.getValue(), true);
+                }
+            } else {
+                for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
+                    meta.addEnchant(entry.getKey(), entry.getValue(), true);
+                }
+            }
+            item.setItemMeta(meta);
+            return true;
+        } catch (final Throwable e) {
+            return false;
+        }
+    }
 }

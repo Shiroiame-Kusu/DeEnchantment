@@ -3,7 +3,6 @@ import org.gradle.api.tasks.compile.JavaCompile
 
 plugins {
     `java-library`
-    id("io.papermc.paperweight.userdev")
 }
 
 java {
@@ -22,13 +21,6 @@ configurations.compileClasspath {
 
 dependencies {
     api(project(":nms-api"))
-    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    paperweight.paperDevBundle("1.21.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.20.6-R0.1-SNAPSHOT")
 }
 
-extra["nmsPackage"] = "v1_21_4"
-extra["versionLabel"] = "1.21.4"
-extra["versionPrefixes"] = "1.21.4"
-extra["factoryPriority"] = "12104"
-
-apply(from = rootProject.file("gradle/nms-modern-module.gradle.kts"))

@@ -24,8 +24,8 @@ public final class FireProtectionCurseHandler extends AbstractCurseHandler {
                                        final EnchantTools enchantTools,
                                        final RegisteredCurse curse) {
         super(plugin, configService, enchantTools, curse);
-        this.chanceRate = configDouble(0.05D, "chance-rate", "chanceRate");
-        this.fireTimeRate = Math.max(1, configInt(20, "fire-time-rate", "fireTimeRate"));
+        this.chanceRate = configDouble(0.15D, "chance-rate", "chanceRate");
+        this.fireTimeRate = Math.max(1, configInt(40, "fire-time-rate", "fireTimeRate"));
     }
 
     @EventHandler(ignoreCancelled = true)

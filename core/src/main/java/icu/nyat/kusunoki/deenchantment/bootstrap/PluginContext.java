@@ -62,17 +62,17 @@ public final class PluginContext {
         this.configService = new ConfigService(plugin, logger);
         this.configService.load();
         this.scheduler = new TaskScheduler(plugin);
-    this.metricsService = new MetricsService(plugin);
-    this.commandRegistry = new CommandRegistry();
-    final NmsBridgeLoader bridgeLoader = new NmsBridgeLoader(plugin, logger);
-    this.nmsBridge = bridgeLoader.load();
-    this.curseRegistry = new CurseRegistry(configService, logger, nmsBridge);
-    this.enchantTools = new EnchantTools(plugin, configService, curseRegistry);
-    this.curseBehaviors = new CurseBehaviorRegistry(plugin, configService, curseRegistry, enchantTools);
-    this.entityDeEnchantCaller = new EntityDeEnchantCaller();
-    this.equipmentScanner = new EquipmentScanner(scheduler);
-    this.gameplayControllers = new GameplayControllerRegistry(plugin, configService, enchantTools);
-    this.hookManager = new HookManager(plugin, logger, curseRegistry, enchantTools);
+        this.metricsService = new MetricsService(plugin);
+        this.commandRegistry = new CommandRegistry();
+        final NmsBridgeLoader bridgeLoader = new NmsBridgeLoader(plugin, logger);
+        this.nmsBridge = bridgeLoader.load();
+        this.curseRegistry = new CurseRegistry(configService, logger, nmsBridge);
+        this.enchantTools = new EnchantTools(plugin, configService, curseRegistry);
+        this.curseBehaviors = new CurseBehaviorRegistry(plugin, configService, curseRegistry, enchantTools);
+        this.entityDeEnchantCaller = new EntityDeEnchantCaller();
+        this.equipmentScanner = new EquipmentScanner(scheduler);
+        this.gameplayControllers = new GameplayControllerRegistry(plugin, configService, enchantTools, curseRegistry);
+        this.hookManager = new HookManager(plugin, logger, curseRegistry, enchantTools);
         registerDefaultCommands();
         this.loaded = true;
         updateDebugFlag();
@@ -83,14 +83,15 @@ public final class PluginContext {
         ensureLoaded();
         updateDebugFlag();
         logger.info("Starting DeEnchantment services");
+        logger.info("NMS bridge: " + nmsBridge.getClass().getPackage().getName());
         metricsService.start();
         commandRegistry.bind(plugin, this);
         curseRegistry.reload();
         curseBehaviors.enable();
-    entityDeEnchantCaller.register(plugin);
-    equipmentScanner.start();
-    gameplayControllers.enable();
-    hookManager.enable();
+        entityDeEnchantCaller.register(plugin);
+        equipmentScanner.start();
+        gameplayControllers.enable();
+        hookManager.enable();
     }
 
     public void disable() {
@@ -126,13 +127,13 @@ public final class PluginContext {
 
     public void reloadConfigs() {
         ensureLoaded();
-    configService.reload();
-    updateDebugFlag();
-    curseRegistry.reload();
-    curseBehaviors.reload();
-    gameplayControllers.reload();
-    hookManager.reload();
-    logger.info("Reloaded DeEnchantment configuration");
+        configService.reload();
+        updateDebugFlag();
+        curseRegistry.reload();
+        curseBehaviors.reload();
+        gameplayControllers.reload();
+        hookManager.reload();
+        logger.info("Reloaded DeEnchantment configuration");
     }
 
     private void updateDebugFlag() {
@@ -189,13 +190,13 @@ public final class PluginContext {
     }
 
     private void registerDefaultCommands() {
-    commandRegistry
-        .register(new ReloadSubcommand())
-        .register(new GiveSubcommand())
-        .register(new RandomSubcommand())
-        .register(new AddSubcommand())
-        .register(new UpdateSubcommand())
-        .register(new PurificationSubcommand())
-        .register(new MigrateSubcommand());
+        commandRegistry
+                .register(new ReloadSubcommand())
+                .register(new GiveSubcommand())
+                .register(new RandomSubcommand())
+                .register(new AddSubcommand())
+                .register(new UpdateSubcommand())
+                .register(new PurificationSubcommand())
+                .register(new MigrateSubcommand());
     }
 }

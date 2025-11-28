@@ -1,13 +1,11 @@
 package icu.nyat.kusunoki.deenchantment.curse;
 
+import icu.nyat.kusunoki.deenchantment.config.LanguageConfig;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.EnchantmentTarget;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 import java.util.Set;
 
 public final class CurseDefinition {
@@ -48,42 +46,39 @@ public final class CurseDefinition {
         this.conflicts = conflicts;
     }
 
-    public static CurseDefinition from(final CurseId id, final ConfigurationSection section) {
+    /**
+     * Creates a CurseDefinition from configuration section and language config.
+     * Names and descriptions are loaded from the language file.
+     */
+    public static CurseDefinition from(final CurseId id, final ConfigurationSection section, final LanguageConfig lang) {
         final boolean enabled = section == null || section.getBoolean("enable", true);
-        final String name = section != null ? section.getString("translate-name", id.defaultName()) : id.defaultName();
-        final String description = section != null ? section.getString("description", id.defaultDescription()) : id.defaultDescription();
-        final String targetKey = section != null ? section.getString("target", id.defaultTarget().name()) : id.defaultTarget().name();
-        final EnchantmentTarget target = resolveTarget(targetKey, id);
-        final double chance = section != null ? section.getDouble("chance", 0.2D) : 0.2D;
-        final int maxLevel = section != null ? section.getInt("max-level", id.defaultMaxLevel()) : id.defaultMaxLevel();
-        final int startLevel = section != null ? section.getInt("start-level", id.defaultStartLevel()) : id.defaultStartLevel();
-        final boolean treasure = section != null ? section.getBoolean("treasure", id.defaultTreasure()) : id.defaultTreasure();
-        final boolean cursed = section != null ? section.getBoolean("cursed", id.defaultCursed()) : id.defaultCursed();
-        final Set<String> conflicts = resolveConflicts(section, id);
+        
+        // Get name and description from language file, fall back to CurseId defaults
+        final String name = lang != null 
+                ? lang.curseName(id.key(), id.defaultName()) 
+                : id.defaultName();
+        final String description = lang != null 
+                ? lang.curseDescription(id.key(), id.defaultDescription()) 
+                : id.defaultDescription();
+        
+        // Use hardcoded defaults from CurseId for enchantment properties
+        final EnchantmentTarget target = id.defaultTarget();
+        final double chance = 0.2D; // Fixed chance for all curses
+        final int maxLevel = id.defaultMaxLevel();
+        final int startLevel = id.defaultStartLevel();
+        final boolean treasure = id.defaultTreasure();
+        final boolean cursed = id.defaultCursed();
+        final Set<String> conflicts = new HashSet<>(id.defaultConflicts());
+        
         return new CurseDefinition(id, enabled, name, description, target, chance, maxLevel, startLevel, treasure, cursed, conflicts);
     }
 
-    private static EnchantmentTarget resolveTarget(final String raw, final CurseId fallback) {
-        try {
-            return EnchantmentTarget.valueOf(Objects.requireNonNull(raw, "target").toUpperCase(Locale.ROOT));
-        } catch (final IllegalArgumentException | NullPointerException ignored) {
-            return fallback.defaultTarget();
-        }
-    }
-
-    private static Set<String> resolveConflicts(final ConfigurationSection section, final CurseId id) {
-        final Set<String> defaults = new HashSet<>(id.defaultConflicts());
-        if (section == null) {
-            return defaults;
-        }
-        final List<String> configured = section.getStringList("conflicts");
-        if (configured == null || configured.isEmpty()) {
-            return defaults;
-        }
-        for (final String entry : configured) {
-            defaults.add(entry.toLowerCase(Locale.ROOT));
-        }
-        return defaults;
+    /**
+     * @deprecated Use {@link #from(CurseId, ConfigurationSection, LanguageConfig)} instead.
+     */
+    @Deprecated
+    public static CurseDefinition from(final CurseId id, final ConfigurationSection section) {
+        return from(id, section, null);
     }
 
     public CurseId id() {
