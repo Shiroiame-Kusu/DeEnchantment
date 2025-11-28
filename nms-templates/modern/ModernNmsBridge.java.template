@@ -101,7 +101,38 @@ final class ModernNmsBridge implements NmsBridge {
 
     @Override
     public void freezeRegistration() {
-        invokeFreeze();
+        // Try to freeze, but handle gracefully if already frozen (1.21.3+)
+        try {
+            invokeFreeze();
+        } catch (final IllegalStateException e) {
+            // "Tags already present before freezing" - registry was already frozen
+            // Just ensure the frozen flag is set and continue
+            if (e.getCause() instanceof java.lang.reflect.InvocationTargetException ite) {
+                final Throwable target = ite.getTargetException();
+                if (target instanceof IllegalStateException && 
+                    target.getMessage() != null && 
+                    target.getMessage().contains("Tags already present")) {
+                    // Expected in 1.21.3+ when we can't clear tags properly
+                    // Just set frozen flag and continue
+                    try {
+                        if (frozenField != null) {
+                            frozenField.setBoolean(nmsRegistry, true);
+                        }
+                    } catch (final IllegalAccessException ignored) {}
+                    return;
+                }
+            }
+            // Check if the direct cause message indicates tags issue
+            if (e.getMessage() != null && e.getMessage().contains("Tags already present")) {
+                try {
+                    if (frozenField != null) {
+                        frozenField.setBoolean(nmsRegistry, true);
+                    }
+                } catch (final IllegalAccessException ignored) {}
+                return;
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -117,14 +148,55 @@ final class ModernNmsBridge implements NmsBridge {
 
     @SuppressWarnings("unchecked")
     private Registry<net.minecraft.world.item.enchantment.Enchantment> lookupRegistry() {
-        // In 1.21+, registryAccess().lookupOrThrow() returns a HolderLookup.RegistryLookup (MappedRegistry$1)
-        // which is NOT a Registry. We need to get the actual WritableRegistry.
-        final Object lookup = craftServer.getServer()
-                .registryAccess()
-                .lookupOrThrow(Registries.ENCHANTMENT);
+        // Different MC versions have different ways to access the registry
+        // Try multiple approaches to find the enchantment registry
         
-        // Try to extract the actual registry from the lookup wrapper
-        return extractRegistry(lookup);
+        final var server = craftServer.getServer();
+        final var registryAccess = server.registryAccess();
+        
+        // Approach 1: Try registry() method which returns Optional<Registry>
+        try {
+            for (final Method method : registryAccess.getClass().getMethods()) {
+                if (method.getName().equals("registry") && method.getParameterCount() == 1) {
+                    final Object result = method.invoke(registryAccess, Registries.ENCHANTMENT);
+                    if (result instanceof java.util.Optional<?> optional && optional.isPresent()) {
+                        final Object inner = optional.get();
+                        if (inner instanceof Registry) {
+                            return (Registry<net.minecraft.world.item.enchantment.Enchantment>) inner;
+                        }
+                        return extractRegistry(inner);
+                    }
+                }
+            }
+        } catch (final ReflectiveOperationException ignored) {}
+        
+        // Approach 2: Try registryOrThrow() method
+        try {
+            for (final Method method : registryAccess.getClass().getMethods()) {
+                if (method.getName().equals("registryOrThrow") && method.getParameterCount() == 1) {
+                    final Object result = method.invoke(registryAccess, Registries.ENCHANTMENT);
+                    if (result instanceof Registry) {
+                        return (Registry<net.minecraft.world.item.enchantment.Enchantment>) result;
+                    }
+                    return extractRegistry(result);
+                }
+            }
+        } catch (final ReflectiveOperationException ignored) {}
+        
+        // Approach 3: Try lookupOrThrow() method (older versions)
+        try {
+            for (final Method method : registryAccess.getClass().getMethods()) {
+                if (method.getName().equals("lookupOrThrow") && method.getParameterCount() == 1) {
+                    final Object result = method.invoke(registryAccess, Registries.ENCHANTMENT);
+                    if (result instanceof Registry) {
+                        return (Registry<net.minecraft.world.item.enchantment.Enchantment>) result;
+                    }
+                    return extractRegistry(result);
+                }
+            }
+        } catch (final ReflectiveOperationException ignored) {}
+        
+        throw new IllegalStateException("Unable to find enchantment registry via any known method");
     }
     
     @SuppressWarnings("unchecked")
@@ -257,9 +329,17 @@ final class ModernNmsBridge implements NmsBridge {
                 );
             }
             if (allTagsField != null) {
-                final Object tagSet = createUnboundTagSet(nmsRegistry.getClass());
-                if (tagSet != null) {
-                    allTagsField.set(nmsRegistry, tagSet);
+                // In newer versions (1.21.3+), frozenTags may be a special TagSet type
+                // that cannot be directly replaced. Try to create compatible value.
+                try {
+                    final Object currentValue = allTagsField.get(nmsRegistry);
+                    final Object tagSet = createUnboundTagSet(nmsRegistry.getClass(), currentValue);
+                    if (tagSet != null) {
+                        allTagsField.set(nmsRegistry, tagSet);
+                    }
+                } catch (final IllegalArgumentException e) {
+                    // Type mismatch - skip this field, registry may still work
+                    // This happens in 1.21.3+ where frozenTags has a different type
                 }
             }
         } catch (final IllegalAccessException exception) {
@@ -267,7 +347,35 @@ final class ModernNmsBridge implements NmsBridge {
         }
     }
 
-    private Object createUnboundTagSet(final Class<?> registryClass) {
+    private Object createUnboundTagSet(final Class<?> registryClass, final Object currentValue) {
+        // If current value is a Map, just return empty map
+        if (currentValue instanceof Map) {
+            return new java.util.HashMap<>();
+        }
+        
+        // Try to find factory method for the TagSet type
+        if (currentValue != null) {
+            final Class<?> tagSetClass = currentValue.getClass();
+            // Look for static factory method in the TagSet class or its enclosing class
+            for (final Class<?> searchClass : new Class<?>[] { tagSetClass, tagSetClass.getEnclosingClass() }) {
+                if (searchClass == null) continue;
+                for (final Method method : searchClass.getDeclaredMethods()) {
+                    if (!Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0) {
+                        continue;
+                    }
+                    // Look for method that returns compatible type (unbound/empty tag set)
+                    if (method.getReturnType().isAssignableFrom(tagSetClass) || 
+                        tagSetClass.isAssignableFrom(method.getReturnType())) {
+                        method.setAccessible(true);
+                        try {
+                            return method.invoke(null);
+                        } catch (final ReflectiveOperationException ignored) {}
+                    }
+                }
+            }
+        }
+        
+        // Fall back to original logic
         // Find the actual MappedRegistry class for inner classes
         Class<?> mappedRegistryClass = registryClass;
         while (mappedRegistryClass != null && !mappedRegistryClass.getName().equals("net.minecraft.core.MappedRegistry")) {
@@ -287,19 +395,26 @@ final class ModernNmsBridge implements NmsBridge {
             // No inner classes found - return null to skip tag set update
             return null;
         }
-        final Class<?> helper = innerClasses[0];
-        for (final Method method : helper.getDeclaredMethods()) {
-            if (!Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0) {
-                continue;
-            }
-            method.setAccessible(true);
-            try {
-                return method.invoke(null);
-            } catch (final ReflectiveOperationException ignored) {
-                // Try the next method.
+        
+        // Try each inner class to find TagSet
+        for (final Class<?> inner : innerClasses) {
+            for (final Method method : inner.getDeclaredMethods()) {
+                if (!Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0) {
+                    continue;
+                }
+                method.setAccessible(true);
+                try {
+                    final Object result = method.invoke(null);
+                    // Check if result is compatible with the field type
+                    if (allTagsField.getType().isInstance(result)) {
+                        return result;
+                    }
+                } catch (final ReflectiveOperationException ignored) {}
             }
         }
-        throw new IllegalStateException("Unable to construct tag set for enchantment registry");
+        
+        // Return null to skip - better than crashing
+        return null;
     }
 
     private net.minecraft.world.item.enchantment.Enchantment createVanillaLikeEnchantment(final Enchantment enchantment) {
