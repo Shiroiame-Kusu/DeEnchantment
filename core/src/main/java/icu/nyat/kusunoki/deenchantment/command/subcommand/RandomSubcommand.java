@@ -94,7 +94,8 @@ public final class RandomSubcommand extends AbstractSubcommand {
         }
         final ItemStack book = new ItemStack(Material.ENCHANTED_BOOK);
         final EnchantmentStorageMeta meta = (EnchantmentStorageMeta) Objects.requireNonNull(book.getItemMeta(), "meta");
-        meta.addStoredEnchant(curse, level, false);
+        // Use PDC storage for curses to avoid Paper 1.20.6+ Handleable issues
+        context.enchantTools().addCurseToPdc(meta, curse, level);
         context.enchantTools().updateLore(meta);
         book.setItemMeta(meta);
         final Map<Integer, ItemStack> overflow = target.getInventory().addItem(book);
@@ -170,11 +171,8 @@ public final class RandomSubcommand extends AbstractSubcommand {
         if (meta == null) {
             return;
         }
-        if (meta instanceof EnchantmentStorageMeta storage) {
-            storage.addStoredEnchant(curse, level, true);
-        } else {
-            meta.addEnchant(curse, level, true);
-        }
+        // Use PDC storage for curses to avoid Paper 1.20.6+ Handleable issues
+        context.enchantTools().addCurseToPdc(meta, curse, level);
         context.enchantTools().updateLore(meta);
         item.setItemMeta(meta);
     }

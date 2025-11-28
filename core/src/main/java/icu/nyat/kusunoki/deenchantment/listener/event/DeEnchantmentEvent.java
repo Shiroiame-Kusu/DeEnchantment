@@ -1,12 +1,17 @@
 package icu.nyat.kusunoki.deenchantment.listener.event;
 
 import icu.nyat.kusunoki.deenchantment.curse.RegisteredCurse;
+import org.bukkit.NamespacedKey;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +23,9 @@ import java.util.Map;
 public abstract class DeEnchantmentEvent extends Event implements Cancellable {
 
     private static final HandlerList HANDLERS = new HandlerList();
+    
+    // PDC key for curses - must match EnchantTools.cursesKey
+    private static final NamespacedKey CURSES_KEY = new NamespacedKey("deenchantment", "deenchantment_curses");
 
     private final LivingEntity entity;
     private boolean cancelled;
@@ -49,14 +57,37 @@ public abstract class DeEnchantmentEvent extends Event implements Cancellable {
     }
 
     protected final void collectFromItem(final ItemStack item) {
-        if (item == null) {
+        if (item == null || !item.hasItemMeta()) {
             return;
         }
+        // First check enchantments map (for backwards compatibility)
         item.getEnchantments().forEach((enchantment, level) -> {
             if (enchantment instanceof RegisteredCurse curse) {
                 incrementCurse(curse, level);
             }
         });
+        // Then check PDC for curses stored there (Paper 1.20.6+ approach)
+        final ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            final PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            final String data = pdc.get(CURSES_KEY, PersistentDataType.STRING);
+            if (data != null && !data.isEmpty()) {
+                for (String part : data.split(",")) {
+                    final String[] kv = part.split(":", 2);
+                    if (kv.length == 2) {
+                        try {
+                            final String curseKey = kv[0];
+                            final int level = Integer.parseInt(kv[1]);
+                            // Look up the curse by key
+                            final Enchantment ench = Enchantment.getByKey(NamespacedKey.minecraft(curseKey));
+                            if (ench instanceof RegisteredCurse curse) {
+                                incrementCurse(curse, level);
+                            }
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                }
+            }
+        }
     }
 
     protected final void collectFromArray(final ItemStack[] items) {

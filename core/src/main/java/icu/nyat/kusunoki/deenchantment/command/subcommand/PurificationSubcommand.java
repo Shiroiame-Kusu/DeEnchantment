@@ -3,7 +3,9 @@ package icu.nyat.kusunoki.deenchantment.command.subcommand;
 import icu.nyat.kusunoki.deenchantment.bootstrap.PluginContext;
 import icu.nyat.kusunoki.deenchantment.command.AbstractSubcommand;
 import icu.nyat.kusunoki.deenchantment.config.MessageConfig;
+import icu.nyat.kusunoki.deenchantment.curse.CurseRegistry;
 import icu.nyat.kusunoki.deenchantment.curse.RegisteredCurse;
+import icu.nyat.kusunoki.deenchantment.util.item.EnchantTools;
 import icu.nyat.kusunoki.deenchantment.util.text.PlaceholderText;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -54,7 +56,7 @@ public final class PurificationSubcommand extends AbstractSubcommand {
             sendMessage(sender, context, "commands.purification-no-meta", "&cThat item cannot hold enchantments.");
             return true;
         }
-        final boolean changed = cleanse(meta);
+        final boolean changed = cleanse(meta, context);
         if (!changed) {
             sendMessage(sender, context, "commands.purification-none", "&eNo curses were found on that item.");
             return true;
@@ -77,8 +79,9 @@ public final class PurificationSubcommand extends AbstractSubcommand {
         return List.of();
     }
 
-    private boolean cleanse(final ItemMeta meta) {
+    private boolean cleanse(final ItemMeta meta, final PluginContext context) {
         boolean modified = false;
+        // First check enchantments map (for backwards compatibility with old items)
         if (meta instanceof EnchantmentStorageMeta storage) {
             final Map<Enchantment, Integer> stored = Map.copyOf(storage.getStoredEnchants());
             for (Map.Entry<Enchantment, Integer> entry : stored.entrySet()) {
@@ -91,6 +94,31 @@ public final class PurificationSubcommand extends AbstractSubcommand {
                 final int level = entry.getValue();
                 modified |= cleanseSingle(entry.getKey(), meta::removeEnchant, base -> meta.addEnchant(base, level, true));
             }
+        }
+        // Also check PDC for curses stored there (Paper 1.20.6+ approach)
+        final EnchantTools enchantTools = context.enchantTools();
+        final CurseRegistry curseRegistry = context.curses();
+        final Map<String, Integer> pdcCurses = enchantTools.getCursesFromPdc(meta);
+        if (!pdcCurses.isEmpty()) {
+            for (Map.Entry<String, Integer> entry : pdcCurses.entrySet()) {
+                final String curseKey = entry.getKey();
+                final int level = entry.getValue();
+                final Optional<RegisteredCurse> curseOpt = curseRegistry.find(curseKey);
+                if (curseOpt.isPresent()) {
+                    final RegisteredCurse curse = curseOpt.get();
+                    final Optional<Enchantment> vanilla = curse.vanillaEnchantment();
+                    if (vanilla.isPresent()) {
+                        if (meta instanceof EnchantmentStorageMeta storage) {
+                            storage.addStoredEnchant(vanilla.get(), level, true);
+                        } else {
+                            meta.addEnchant(vanilla.get(), level, true);
+                        }
+                        modified = true;
+                    }
+                }
+            }
+            // Clear the PDC curses after conversion
+            enchantTools.copyCursesToPdc(meta, Map.of());
         }
         return modified;
     }

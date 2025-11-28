@@ -131,11 +131,8 @@ public final class AddSubcommand extends AbstractSubcommand {
         if (meta == null) {
             return;
         }
-        if (meta instanceof EnchantmentStorageMeta storage) {
-            storage.addStoredEnchant(curse, level, true);
-        } else {
-            meta.addEnchant(curse, level, true);
-        }
+        // Use PDC storage instead of enchantment API to avoid Paper 1.20.6+ Handleable issues
+        context.enchantTools().addCurseToPdc(meta, curse, level);
         context.enchantTools().updateLore(meta);
         item.setItemMeta(meta);
     }

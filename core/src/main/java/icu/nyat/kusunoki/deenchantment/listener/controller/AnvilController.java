@@ -80,7 +80,9 @@ public final class AnvilController implements Listener {
         final Map<Enchantment, Integer> additions = additionMeta instanceof EnchantmentStorageMeta storage
                 ? new HashMap<>(storage.getStoredEnchants())
                 : new HashMap<>(addition.getEnchantments());
-        if (additions.isEmpty()) {
+        // Also get curses from PDC of the addition item
+        final Map<String, Integer> additionCurses = enchantTools.getCursesFromPdc(additionMeta);
+        if (additions.isEmpty() && additionCurses.isEmpty()) {
             final ItemStack currentResult = event.getResult();
             if (isEmpty(currentResult)) {
                 return;
@@ -106,6 +108,27 @@ public final class AnvilController implements Listener {
         final ItemStack combined = base.clone();
         final Set<Enchantment> removals = new HashSet<>();
         final int cost = enchantTools.addEnchantments(combined, additions, removals, ignoreConflicts);
+        // Also merge curses from addition item's PDC
+        if (!additionCurses.isEmpty()) {
+            final ItemMeta combinedMeta = combined.getItemMeta();
+            if (combinedMeta != null) {
+                final Map<String, Integer> baseCurses = enchantTools.getCursesFromPdc(combinedMeta);
+                final Map<String, Integer> mergedCurses = new HashMap<>(baseCurses);
+                for (Map.Entry<String, Integer> entry : additionCurses.entrySet()) {
+                    final String key = entry.getKey();
+                    final int addLevel = entry.getValue();
+                    final int existingLevel = mergedCurses.getOrDefault(key, 0);
+                    if (existingLevel == addLevel) {
+                        mergedCurses.put(key, addLevel + 1); // Same level = upgrade
+                    } else {
+                        mergedCurses.put(key, Math.max(existingLevel, addLevel));
+                    }
+                }
+                enchantTools.copyCursesToPdc(combinedMeta, mergedCurses);
+                enchantTools.updateLore(combinedMeta);
+                combined.setItemMeta(combinedMeta);
+            }
+        }
         final ItemStack existingResult = event.getResult();
         if (base.equals(existingResult)) {
             event.setResult(null);

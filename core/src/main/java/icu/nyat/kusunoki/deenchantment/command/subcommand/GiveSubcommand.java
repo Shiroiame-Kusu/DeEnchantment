@@ -61,7 +61,8 @@ public final class GiveSubcommand extends AbstractSubcommand {
         }
         final ItemStack book = new ItemStack(Material.ENCHANTED_BOOK);
         final EnchantmentStorageMeta meta = (EnchantmentStorageMeta) Objects.requireNonNull(book.getItemMeta(), "meta");
-        meta.addStoredEnchant(curse, parsedLevel, false);
+        // Use PDC storage for curses to avoid Paper 1.20.6+ Handleable issues
+        context.enchantTools().addCurseToPdc(meta, curse, parsedLevel);
         context.enchantTools().updateLore(meta);
         book.setItemMeta(meta);
         final Map<Integer, ItemStack> overflow = target.getInventory().addItem(book);
